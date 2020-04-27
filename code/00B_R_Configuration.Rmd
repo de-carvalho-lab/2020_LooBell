@@ -1,0 +1,137 @@
+---
+title: '00B - R Configuration'
+author: "Emma Bell"
+date: '2020-04-22'
+output:
+  html_document:
+    df_print: paged
+    toc: yes
+    toc_float: true
+    toc_depth: 2
+    fig_caption: true
+---
+
+# Summary {.tabset}
+
+This R Notebook contains code pertaining to the paper Loo and Bell _et al._ (2020) _Nature Medicine_.
+
+* Aim: To configure my R environment.
+* Objectives:
+  1. Create objects specifying the path to commonly referenced directories;
+  2. Create objects specifying the parameters for generating figures;
+  3. Create an object specifying the colour scheme used in figures.
+
+To run these scripts we assume a directory structure as described in the README accompanying this GitHub. I.e.
+
+* code/ - _contains R Notebook(s) and the resulting HTML file(s)_
+  * 00A - Sequencing read pre-processing
+  * 00B - R configuration
+  * RRBS_01 - Sequencing read alignment with Bismark
+  * RRBS_02 - Calling base level methylation with MethylKit
+  * RRBS_03 - Calculating differential methylation with MethylKit
+  * RRBS_04 - Defining hypomethylated windows for HOMER motif enrichment
+  * ATAC_05 - Calling nucleosome-free regions with MACS2
+  * ATAC_06 - Quantifying nucleosome-free regions
+  * ATAC_07 - Defining nucleosome-free regions unique to the DAC sample group for HOMER motif enrichment
+  * RNA_08 - Quantifying transcript expression with Kallisto
+  * RNA_09 - Calling differential transcript expression with Sleuth
+  * RNA_10 - Gene-set enrichment with CensensusPathDB and limma
+* data/ - _contains any data used in this project_
+  * 01_raw/
+  * 02_clean/
+  * 03_augmented/
+* docs/ - _contains any documents pertaining to this project_
+  * Presentation_plan_template.docx
+  * Presentation_template.pptx
+  * Research_project_plan.docx
+* results/ - _contains results files_
+  * docs/
+  * figures/
+  * tables/
+
+## 1. Create objects specifying the path to commonly referenced directories
+
+The parent directory for this project is `2020_LooBell_NatureMedicine`.
+
+```{r}
+code.dir <- file.path("code")
+data.dir <- file.path("data")
+clean.data.dir <- file.path(data.dir,"02_clean")
+augmented.data.dir <- file.path(data.dir,"03_augmented")
+docs.dir <- file.path("docs")
+results.dir <- file.path("results")
+figure.dir <- file.path(results.dir,"figures")
+table.dir <- file.path(results.dir,"tables")
+
+dirs <- list(code.dir=code.dir,data.dir=data.dir,clean.data.dir=clean.data.dir,augmented.data.dir=augmented.data.dir,docs.dir=docs.dir,results.dir=results.dir,figure.dir=figure.dir,table.dir=table.dir)
+dirs
+```
+
+## 2. Create objects specifying the parameters for generating figures
+
+All figures are outputted to the following specifications:
+
+```{r}
+units <- "cm"
+width <- 6
+height <- 6
+res <- 480
+pointsize <- 6
+
+fig.specs <- list(units=units,width=width,height=height,res=res,pointsize=pointsize)
+fig.specs
+```
+
+## 3. Create an object specifying the colour scheme used in figures
+
+This R Notebook requires the following packages:
+
+```{r}
+library(viridis)
+```
+
+The colour scheme used in this R Notebook is as follows:
+
+```{r}
+pal <- inferno(n = 9, begin = 0.2, end = 0.8)
+pal2 <- inferno(n = 9, begin = 0.2, end = 0.8, alpha = 0.5)
+
+fig.cols <- list(
+    Donor = c(`Donor 1`=pal2[1], `Donor 2`=pal[1], `Donor 3`=pal[2]),
+    Stimulated = c(Unstimulated="#DEA3AF",Stimulated=pal[5]),
+    DAC = c(Untreated="lightgrey",Treated=pal[7]))
+fig.cols
+
+simple.cols <- unlist(fig.cols)[c(4,5,7)]
+simple.cols
+```
+
+
+```{r}
+names.arg <- unlist(sapply(X = fig.cols, FUN = function(X) names(X)))
+side.names <- names(fig.cols)
+
+par(mar = c(2,12,2,2), xpd = TRUE)
+bp <- barplot(height = rep(x = 9, times = length(unlist(fig.cols))), col = unlist(fig.cols), names.arg = names.arg, horiz = TRUE, las = 1, axes = FALSE)
+side.y <- c(mean(bp[1:3,1]),mean(bp[4:5,1]),mean(bp[6:7]))
+text(x = 1.5, y = bp[,1], labels = unlist(fig.cols), cex = 0.7, col = rep(c("black","white","black"),c(1,2,4)))
+mtext(text = side.names, side = 2, las = 1, line = 7, at = side.y)
+lines(x = c(-2.4,-2.4), y = bp[c(1,3),1], xpd = TRUE, lwd = 2)
+lines(x = c(-2.7,-2.7), y = bp[c(4,5),1], xpd = TRUE, lwd = 2)
+lines(x = c(-2.5,-2.5), y = bp[c(6,7),1], xpd = TRUE, lwd = 2)
+```
+
+```{r}
+rm(pal,pal2,names.arg,side.names,side.y,bp)
+```
+
+```{r}
+r.config <- list(dirs=dirs,fig.specs=fig.specs,fig.cols=fig.cols,simple.cols=simple.cols)
+r.config
+```
+
+
+```{r}
+saveRDS(object = r.config, file = file.path(dirs$code.dir,"r_config.RDS"))
+```
+

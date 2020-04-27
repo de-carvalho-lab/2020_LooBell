@@ -1,0 +1,328 @@
+---
+title: 'RRBS_01 - Sequencing read alignment with Bismark'
+author: "Emma Bell"
+date: '2020-04-27'
+output:
+  html_document:
+    df_print: paged
+    toc: yes
+    toc_float: true
+    toc_depth: 2
+    fig_caption: true
+---
+
+# Summary
+
+This R Notebook contains code pertaining to the paper Loo and Bell _et al._ (2020) _Nature Medicine_.
+
+* Aim: To align RRBS sequencing reads with Bismark.
+* Objectives:
+  1. To call base-level methylation percentage;
+  2. To visualise the bisulphite conversion rates of each sample;
+  3. To filter and unite the CpGs;
+  4. To output a table of the C/T counts and coverage for each sample;
+  5. To visualise methylation percentage per sample;
+  6. To visualise the average the base-level methylation for each sample group;
+  7. To visualise the pairwise Pearson correlation co-efficients for each sample.
+
+To run these scripts we assume a directory structure as described in the README accompanying this GitHub. I.e.
+
+* code/ - _contains R Notebook(s) and the resulting HTML file(s)_
+  * 00A - Sequencing read pre-processing
+  * 00B - R configuration
+  * RRBS_01 - Sequencing read alignment with Bismark
+  * RRBS_02 - Calling base level methylation with MethylKit
+  * RRBS_03 - Calculating differential methylation with MethylKit
+  * RRBS_04 - Defining hypomethylated windows for HOMER motif enrichment
+  * ATAC_05 - Calling nucleosome-free regions with MACS2
+  * ATAC_06 - Quantifying nucleosome-free regions
+  * ATAC_07 - Defining nucleosome-free regions unique to the DAC sample group for HOMER motif enrichment
+  * RNA_08 - Quantifying transcript expression with Kallisto
+  * RNA_09 - Calling differential transcript expression with Sleuth
+  * RNA_10 - Gene-set enrichment with CensensusPathDB and limma
+* data/ - _contains any data used in this project_
+  * 01_raw/
+  * 02_clean/
+  * 03_augmented/
+* docs/ - _contains any documents pertaining to this project_
+  * Presentation_plan_template.docx
+  * Presentation_template.pptx
+  * Research_project_plan.docx
+* results/ - _contains results files_
+  * docs/
+  * figures/
+  * tables/
+
+## Configuration
+
+This analysis requires the following packages:
+
+```{r}
+library(readxl)
+library(vtree)
+library(methylKit)
+library(RColorBrewer)
+library(pheatmap)
+```
+
+This analysis requires the following R configuration object:
+
+```{r}
+r.config <- readRDS(file = file.path("code","r_config.RDS"))
+```
+
+## Metadata
+
+```{r}
+metadata <- read_excel(path = file.path(r.config$dirs$data.dir, "metadata.xlsx"), sheet = "RRBS")
+metadata
+```
+
+I'll use the `vtree` package to visualise the experimental design.
+
+```{r}
+vtree(z = metadata, vars = c("Stimulated","DAC"))
+```
+
+# Analysis
+
+## 1. Calling base-level methylation percentage
+
+I'll use the `methylKit` R package to work with the RRBS. The RRBS sequencing reads were aligned to the hg38 genome with Bismark, thus I'll use the `processBismarkAln` function to process the bam files.
+
+```{r eval=FALSE}
+bams <- as.list(list.files(path = file.path(r.config$dirs$clean.data.dir,"01_rrbs_bams"), pattern = "bam"))
+bam.locations <- as.list(file.path(r.config$dirs$clean.data.dir,"01_rrbs_bams",bams))
+bam.locations
+sample.name <- lapply(X = bams, FUN = function(X){
+  this.bam <- X
+  strsplit(x = this.bam, split = "_")[[1]][1]
+})
+treatment <- rep(c(0,1,2),3)
+names(treatment) <- sample.name
+meth.raw <- processBismarkAln(location = bam.locations, sample.id = sample.name, assembly="hg19", read.context = "CpG", save.folder = file.path(r.config$dirs$augmented.data.dir,"01_rrbs_methylKit"), save.context = "CpG", treatment = treatment)
+```
+
+Once `methylKit` has processed the bam files, it outputs text files summarising the methylation data for each sample. I've saved these in the directory `data/03_augmented/01_rrbs_methylKit`. These can be quickly read in using the `methRead()` function.
+
+```{r}
+meth.files <- as.list(list.files(path = file.path(r.config$dirs$augmented.data.dir,"01_rrbs_methylKit"), pattern = "CpG.txt"))
+meth.files <- as.list(file.path(r.config$dirs$augmented.data.dir,"01_rrbs_methylKit",meth.files))
+meth.ids <- lapply(X = meth.files, FUN = function(X){
+  this.meth <- X
+  strsplit(x = this.meth, split = "/")[[1]][length(strsplit(x = this.meth, split = "/")[[1]])]
+})
+sample.name <- lapply(X = meth.ids, FUN = function(X){
+  this.meth <- X
+  strsplit(x = this.meth, split = "_")[[1]][1]
+})
+treatment <- rep(c(0,1,2),3)
+names(treatment) <- sample.name
+meth.raw <- methRead(location = meth.files, sample.id = sample.name, assembly="hg19", context = "CpG", treatment = treatment)
+```
+
+## 2. Visualising the bisulphite conversion rates of each sample
+
+`MethylKit` outputs the bisulphite conversion rate of each sample alongside the methylation data as files named `_conversionStats.txt`.
+
+```{r}
+stats.files <- list.files(path = file.path(r.config$dirs$augmented.data.dir,"01_rrbs_methylKit"), pattern = "_conversionStats.txt")
+conversion.stats <- lapply(X = stats.files, FUN = function(X){
+  this.file <- X
+  this.table <- read.table(text = gsub(pattern = ":|=", replacement = "\t", x = readLines(con = file.path(r.config$dirs$augmented.data.dir,"01_rrbs_methylKit",this.file))), sep = "\t", header = FALSE, skip = 2, stringsAsFactors = FALSE, col.names = c("Statistic","Count"), row.names = 1)
+})
+names(conversion.stats) <- stats.files
+```
+
+```{r}
+conversion.stats.ma <- matrix(data = unlist(conversion.stats), nrow = 6, ncol = 9, byrow = FALSE)
+conversion.stats.ma <- conversion.stats.ma[c(2,4,6),]
+colnames(conversion.stats.ma) <- unique(metadata$`Sequencing ID`)
+rownames(conversion.stats.ma) <- c("Average","Forward","Reverse")
+conversion.stats.ma
+```
+
+```{r}
+bp <- barplot(height = conversion.stats.ma, beside = TRUE, plot = FALSE)
+x.text <- bp[2,c(2,5,8)]
+x.lines <- bp[c(1,3),]
+par(mar = c(4,4,5,2))
+barplot(height = conversion.stats.ma, beside = TRUE, ylim = c(99,100), xpd = FALSE, names.arg = rep("",9), ylab = "Rate (%)", main = "Bisulphite conversion efficiency", las = 1)
+mtext(text = unique(metadata$`Donor ID (simple)`), side = 1, line = 2, at = x.text)
+lines(x = c(bp[1,1],bp[3,3]), y = c(98.9,98.9), xpd = TRUE, lwd = 7)
+lines(x = c(bp[1,4],bp[3,6]), y = c(98.9,98.9), xpd = TRUE, lwd = 7)
+lines(x = c(bp[1,7],bp[3,9]), y = c(98.9,98.9), xpd = TRUE, lwd = 7)
+for(i in 1:ncol(x.lines)){
+  lines(x = x.lines[,i], y = c(98.95,98.95), xpd = TRUE, lwd = 7, col = rep(r.config$simple.cols,3)[i])
+}
+legend("top", legend = rownames(conversion.stats.ma), fill = grey.colors(n = 3), horiz = TRUE, bty = "n", inset = -0.12, xpd = TRUE, title = "Strand")
+```
+
+```{r}
+png.name <- file.path(r.config$dirs$figure.dir,"RRBS_S01_bisulphiteConversion.png")
+png(filename = png.name, width = r.config$fig.specs$width, height = r.config$fig.specs$height, units = r.config$fig.specs$units, res = r.config$fig.specs$res, pointsize = r.config$fig.specs$pointsize)
+par(mar = c(4,5,5,2))
+barplot(height = conversion.stats.ma, beside = TRUE, ylim = c(99.7,100), xpd = FALSE, names.arg = rep("",9), ylab = "", main = "Bisulphite conversion efficiency", las = 1)
+legend("top", legend = c("Both","Forward","Reverse"), fill = grey.colors(n = 3), horiz = TRUE, bty = "n", inset = -0.1, xpd = TRUE, title = "Strand")
+dev.off()
+```
+
+The bisulphite conversion rates look beautiful!
+
+## 3. Filtering and uniting the CpGs
+
+I'll filter the data to remove bases with <10 reads and the highest coverage (possible PCR duplications).
+
+```{r}
+meth.filtered <- filterByCoverage(methylObj = meth.raw, lo.count = 10, lo.perc = NULL, hi.count = NULL, hi.perc = 99.9)
+meth.base <- unite(object = meth.filtered, destrand = TRUE)
+```
+
+## 4. Outputting a table of the C/T counts and coverage for each sample
+
+```{r}
+meth.df <- getData(x = meth.base)
+rrbs_ct_counts <- meth.df
+colnames(rrbs_ct_counts)[5:ncol(rrbs_ct_counts)] <- paste(c("coverage","numCs","numTs"),rep(unlist(sample.name), each = 3), sep = ".")
+write.table(x = rrbs_ct_counts, file = file.path(r.config$dirs$table.dir,"rrbs_ct_counts.txt"), sep = "\t", quote = FALSE, row.names = FALSE)
+```
+
+
+## 5. Visualising methylation percentage per sample;
+
+I'll look at the methylation percentage values for the raw and filtered data.
+
+Here are the methylation and coverage statistics for the raw data:
+
+```{r}
+par(mar = c(2,4,5,2), xpd = TRUE, mfrow = c(3,3))
+lapply(X = meth.raw, FUN = function(X) getMethylationStats(object = X, plot = TRUE, both.strands = FALSE, labels = FALSE))
+lapply(X = meth.raw, FUN = function(X) getCoverageStats(object = X, plot = TRUE, both.strands = FALSE, labels = FALSE))
+```
+
+And here are the plots for the filtered data:
+
+```{r}
+par(mar = c(2,4,5,2), xpd = TRUE, mfrow = c(3,3))
+lapply(X = meth.filtered, FUN = function(X) getMethylationStats(object = X, plot = TRUE, both.strands = FALSE, labels = FALSE))
+lapply(X = meth.filtered, FUN = function(X) getCoverageStats(object = X, plot = TRUE, both.strands = FALSE, labels = FALSE))
+```
+
+I'll create publication quality figures summarising this data.
+
+```{r}
+meth.prop <- array(data = NA, dim = c(nrow(meth.df),length(sample.name)))
+for(i in 1:length(sample.name)){
+  this.sample <- i
+  col.index <- grep(pattern = this.sample, x = colnames(meth.df))
+  these.columns <- meth.df[,col.index]
+  this.prop <- these.columns[,2]/these.columns[,1]
+  meth.prop[,this.sample] <- this.prop
+}
+classes <- apply(X = metadata[,c("Stimulated","DAC")], MARGIN = 1, FUN = function(X){
+  this.row <- X
+  paste(this.row, collapse = "_")
+})
+classes.unique <- unique(classes)
+meth.prop.mean <- array(data = NA, dim = c(nrow(meth.df), length(unique(classes))))
+for(i in 1:length(classes.unique)){
+ this.class <- classes.unique[i]
+ col.index <- grep(pattern = this.class, x = classes)
+ these.columns <- meth.prop[,col.index]
+ row.means <- rowMeans(these.columns)
+ meth.prop.mean[,i] <- row.means
+}
+```
+
+I'll plot the mean methylation as a density line graph with a separate plot for each sample.
+
+```{r}
+densities <- lapply(X = seq_along(1:ncol(meth.prop)), FUN = function(i){
+  this.col <- meth.prop[,i]
+  density(x = this.col, bw = 0.02)
+})
+xlab <- "CpG methylation (%)"
+ylab <- "Density"
+ylim <- c(0, max(densities[[3]]$y) * 1.1)
+par(mfrow = c(3,3), mar = c(4,4,1,1))
+for(i in 1:length(classes)){
+    plot(x = densities[[i]]$x * 100, y = densities[[i]]$y, ylim = ylim, xlab = xlab, ylab = ylab, type = "l", lwd = 2, col = rep(r.config$simple.cols,3)[i], las = 1)
+}
+
+for(i in 1:nrow(metadata)){
+  this.sample <- metadata$`Sequencing ID`[i]
+  png.name <- file.path(r.config$dirs$figure.dir,paste0("RRBS_S02_methDensity_",this.sample,".png"))
+  png(filename = png.name, width = 2, height = 2, units = r.config$fig.specs$units, res = r.config$fig.specs$res, pointsize = r.config$fig.specs$pointsize)
+  par(mar = c(1,1,1,1))
+  plot(x = densities[[i]]$x * 100, y = densities[[i]]$y, ylim = ylim, xlab = xlab, ylab = ylab, type = "l", lwd = 2, col = rep(r.config$simple.cols,3)[i], las = 1, axes = FALSE)
+  axis(side = 1, at = seq(0,100,20), labels = rep("",6))
+  axis(side = 2, at = seq(0,10,2), labels = rep("",6))
+  dev.off()
+}
+```
+
+## 6. Visualising the average the base-level methylation for each sample group
+
+I'll average the base-level CpG methylation for each sample group and plot density.
+
+```{r}
+densities <- lapply(X = seq_along(1:length(r.config$simple.cols)), FUN = function(i){
+  this.col <- meth.prop.mean[,i]
+  density(x = this.col, bw = 0.01)
+})
+xlab <- "CpG methylation (%)"
+ylab <- "Density"
+ylim <- c(0, max(densities[[3]]$y) * 1.1)
+par(mar = c(2,2,1,1))
+for(i in 1:length(classes.unique)){
+  plot(x = densities[[i]]$x * 100, y = densities[[i]]$y, ylim = ylim, xlab = xlab, ylab = ylab, type = "l", lwd = 2, col = r.config$simple.cols[i], las = 1)
+}
+```
+
+
+```{r}
+for(i in 1:length(classes.unique)){
+  png.name <- file.path(r.config$dirs$figure.dir,paste0("RRBS_01_methDensity_byGroup_",classes.unique[i],".png"))
+  png(filename = png.name, width = 2.5, height = 2.5, units = r.config$fig.specs$units, res = r.config$fig.specs$res, pointsize = r.config$fig.specs$pointsize)
+  par(mar = c(1,1,1,1))
+  plot(x = densities[[i]]$x * 100, y = densities[[i]]$y, ylim = ylim, xlab = xlab, ylab = ylab, type = "l", lwd = 2, col = r.config$simple.cols[i], las = 1, axes = FALSE)
+  axis(side = 1, at = seq(0,100,20), labels = rep("",6))
+  axis(side = 2, at = c(0,5,10,15), las = 1, labels = rep("",4))
+  dev.off()
+}
+```
+
+## 7. Visualising the pairwise Pearson correlation co-efficients for each sample
+
+Finally, I'll look at the correlation in methylation between samples. We would expect to see less correlation between the DAC treated samples and all others.
+
+```{r}
+meth.table <- getData(x = meth.base)
+meth.array <- array(data = NA, dim = c(nrow(meth.table),9))
+colnames(meth.array) <- sample.name
+for(i in 1:9){
+  this.cov <- meth.table[,grep(pattern = i, x = colnames(x = meth.table))]
+  meth.prop <- this.cov[,2]/this.cov[,1]
+  meth.array[,i] <- meth.prop
+}
+meth.cor <- cor(x = meth.array, method = "spearman")
+```
+
+Now, let's plot the matrix of correlation co-efficients as a heatmap.
+
+```{r}
+dendro <- hclust(as.dist(1-meth.cor), method = "ward.D2")
+breaksList <- seq(0.8, 1, by = 0.001)
+cols <- colorRampPalette(rev(brewer.pal(n = 7, name = "YlOrRd")))(length(breaksList))
+annotation_col <- data.frame(metadata[,3:5], row.names = metadata$`Sequencing ID`)
+colnames(annotation_col)[1] <- "Donor"
+
+pheatmap(mat = meth.cor, color = cols, breaks = breaksList, border_color = NA, cluster_rows = dendro,cluster_cols = dendro, annotation_col = annotation_col, annotation_colors = r.config$fig.cols, show_rownames = FALSE, show_colnames = FALSE)
+```
+
+```{r}
+png.name <- file.path(r.config$dirs$figure.dir,"RRBS_02_corHeatmap.png")
+png(filename = png.name, width = 8, height = r.config$fig.specs$height, units = r.config$fig.specs$units, res = r.config$fig.specs$res, pointsize = r.config$fig.specs$pointsize)
+pheatmap(mat = meth.cor, color = cols, breaks = breaksList, border_color = NA, cluster_rows = dendro,cluster_cols = dendro, annotation_col = annotation_col, annotation_colors = r.config$fig.cols, show_rownames = FALSE, show_colnames = FALSE, treeheight_row = 15, treeheight_col = 15, fontsize = 6, cellwidth = 12, cellheight = 12)
+dev.off()
+```
