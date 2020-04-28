@@ -91,8 +91,8 @@ vtree(z = metadata, vars = c("Stimulated","DAC"))
 I'll use the `methylKit` R package to work with the RRBS. The RRBS sequencing reads were aligned to the hg38 genome with Bismark, thus I'll use the `processBismarkAln` function to process the bam files.
 
 ```{r eval=FALSE}
-bams <- as.list(list.files(path = file.path(r.config$dirs$clean.data.dir,"01_rrbs_bams"), pattern = "bam"))
-bam.locations <- as.list(file.path(r.config$dirs$clean.data.dir,"01_rrbs_bams",bams))
+bams <- as.list(list.files(path = file.path(r.config$dirs$clean.data.dir,"02_rrbs_bams"), pattern = "bam"))
+bam.locations <- as.list(file.path(r.config$dirs$clean.data.dir,"02_rrbs_bams",bams))
 bam.locations
 sample.name <- lapply(X = bams, FUN = function(X){
   this.bam <- X

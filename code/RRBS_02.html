@@ -2903,8 +2903,8 @@ metadata</code></pre>
 <div id="calling-base-level-methylation-percentage" class="section level2">
 <h2>1. Calling base-level methylation percentage</h2>
 <p>I’ll use the <code>methylKit</code> R package to work with the RRBS. The RRBS sequencing reads were aligned to the hg38 genome with Bismark, thus I’ll use the <code>processBismarkAln</code> function to process the bam files.</p>
-<pre class="r"><code>bams &lt;- as.list(list.files(path = file.path(r.config$dirs$clean.data.dir,&quot;01_rrbs_bams&quot;), pattern = &quot;bam&quot;))
-bam.locations &lt;- as.list(file.path(r.config$dirs$clean.data.dir,&quot;01_rrbs_bams&quot;,bams))
+<pre class="r"><code>bams &lt;- as.list(list.files(path = file.path(r.config$dirs$clean.data.dir,&quot;02_rrbs_bams&quot;), pattern = &quot;bam&quot;))
+bam.locations &lt;- as.list(file.path(r.config$dirs$clean.data.dir,&quot;02_rrbs_bams&quot;,bams))
 bam.locations
 sample.name &lt;- lapply(X = bams, FUN = function(X){
   this.bam &lt;- X
