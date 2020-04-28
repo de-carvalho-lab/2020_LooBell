@@ -2995,6 +2995,7 @@ meth.base &lt;- unite(object = meth.filtered, destrand = TRUE)</code></pre>
 rrbs_ct_counts &lt;- meth.df
 colnames(rrbs_ct_counts)[5:ncol(rrbs_ct_counts)] &lt;- paste(c(&quot;coverage&quot;,&quot;numCs&quot;,&quot;numTs&quot;),rep(unlist(sample.name), each = 3), sep = &quot;.&quot;)
 write.table(x = rrbs_ct_counts, file = file.path(r.config$dirs$table.dir,&quot;rrbs_ct_counts.txt&quot;), sep = &quot;\t&quot;, quote = FALSE, row.names = FALSE)</code></pre>
+<pre class="bash"><code>pigz results/tables/rrbs_ct_counts.txt</code></pre>
 </div>
 <div id="visualising-methylation-percentage-per-sample" class="section level2">
 <h2>5. Visualising methylation percentage per sample;</h2>

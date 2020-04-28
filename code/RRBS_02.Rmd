@@ -194,6 +194,10 @@ colnames(rrbs_ct_counts)[5:ncol(rrbs_ct_counts)] <- paste(c("coverage","numCs","
 write.table(x = rrbs_ct_counts, file = file.path(r.config$dirs$table.dir,"rrbs_ct_counts.txt"), sep = "\t", quote = FALSE, row.names = FALSE)
 ```
 
+```{bash eval=FALSE}
+pigz results/tables/rrbs_ct_counts.txt
+```
+
 
 ## 5. Visualising methylation percentage per sample;
 
