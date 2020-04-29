@@ -57,6 +57,7 @@ This analysis requires the following packages:
 
 ```{r}
 library(readxl)
+library(writexl)
 library(vtree)
 library(methylKit)
 library(BiocParallel)
@@ -155,6 +156,15 @@ I'll write out the two `meth.diff` objects.
 saveRDS(object = meth.diff[[1]], file = file.path(r.config$dirs$augmented.data.dir,"01_rrbs_methylKit","methylKit_methDiff_StimVsUnstim.RDS"))
 saveRDS(object = meth.diff[[2]], file = file.path(r.config$dirs$augmented.data.dir,"01_rrbs_methylKit","methylKit_methDiff_StimDACVsStim.RDS"))
 ```
+
+I'll also write these out as a supplementary table.
+
+```{r}
+meth.df <- bplapply(X = meth.diff, FUN = function(X) getData(X), BPPARAM = param)
+names(meth.df) <- comparisons
+write_xlsx(x = meth.df, path = file.path(r.config$dirs$table.dir,"RRBS_SupplementaryTable_01.xlsx"), col_names = TRUE)
+```
+
 
 ## 3. Visualising the distribution of differential methylation values
 

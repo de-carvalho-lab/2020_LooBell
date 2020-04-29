@@ -2842,6 +2842,7 @@ div.tocify {
 <h2>Configuration</h2>
 <p>This analysis requires the following packages:</p>
 <pre class="r"><code>library(readxl)
+library(writexl)
 library(vtree)
 library(methylKit)</code></pre>
 <pre><code>## Loading required package: GenomicRanges</code></pre>
@@ -2973,6 +2974,17 @@ meth.data &lt;- bplapply(X = comparisons, FUN = function(X){
 <p>I’ll write out the two <code>meth.diff</code> objects.</p>
 <pre class="r"><code>saveRDS(object = meth.diff[[1]], file = file.path(r.config$dirs$augmented.data.dir,&quot;01_rrbs_methylKit&quot;,&quot;methylKit_methDiff_StimVsUnstim.RDS&quot;))
 saveRDS(object = meth.diff[[2]], file = file.path(r.config$dirs$augmented.data.dir,&quot;01_rrbs_methylKit&quot;,&quot;methylKit_methDiff_StimDACVsStim.RDS&quot;))</code></pre>
+<p>I’ll also write these out as a supplementary table.</p>
+<pre class="r"><code>meth.df &lt;- bplapply(X = meth.diff, FUN = function(X) getData(X), BPPARAM = param)</code></pre>
+<pre><code>## 
+  |                                                                            
+  |                                                                      |   0%
+  |                                                                            
+  |===================================                                   |  50%
+  |                                                                            
+  |======================================================================| 100%</code></pre>
+<pre class="r"><code>names(meth.df) &lt;- comparisons
+write_xlsx(x = meth.df, path = file.path(r.config$dirs$table.dir,&quot;RRBS_SupplementaryTable_01.xlsx&quot;), col_names = TRUE)</code></pre>
 </div>
 <div id="visualising-the-distribution-of-differential-methylation-values" class="section level2">
 <h2>3. Visualising the distribution of differential methylation values</h2>
