@@ -1,0 +1,281 @@
+---
+title: 'RRBS_03 - Calculating differential methylation with MethylKit'
+author: "Emma Bell"
+date: '2020-04-29'
+output:
+  html_document:
+    df_print: paged
+    toc: yes
+    toc_float: true
+    toc_depth: 2
+    fig_caption: true
+---
+
+# Summary
+
+This R Notebook contains code pertaining to the paper Loo and Bell _et al._ (2020) _Nature Medicine_.
+
+* Aim: To calculate differential methylation with MethylKit.
+* Objectives:
+  1. To filter, tile, and unite the processed RRBS data;
+  2. To calculate differential methylation;
+  3. To visualise the distribution of differential methylation values;
+  4. To identify hypomethylated windows;
+  5. To perform HOMER motif enrichment on the hypomethylated windows.
+
+To run these scripts we assume a directory structure as described in the README accompanying this GitHub. I.e.
+
+* code/ - _contains R Notebook(s) and the resulting HTML file(s)_
+  * 00A - Sequencing read pre-processing
+  * 00B - R configuration
+  * RRBS_01 - Sequencing read alignment with Bismark
+  * RRBS_02 - Calling base level methylation with MethylKit
+  * RRBS_03 - Calculating differential methylation with MethylKit
+  * RRBS_04 - Defining hypomethylated windows for HOMER motif enrichment
+  * ATAC_05 - Calling nucleosome-free regions with MACS2
+  * ATAC_06 - Quantifying nucleosome-free regions
+  * ATAC_07 - Defining nucleosome-free regions unique to the DAC sample group for HOMER motif enrichment
+  * RNA_08 - Quantifying transcript expression with Kallisto
+  * RNA_09 - Calling differential transcript expression with Sleuth
+  * RNA_10 - Gene-set enrichment with CensensusPathDB and limma
+* data/ - _contains any data used in this project_
+  * 01_raw/
+  * 02_clean/
+  * 03_augmented/
+* docs/ - _contains any documents pertaining to this project_
+  * Presentation_plan_template.docx
+  * Presentation_template.pptx
+  * Research_project_plan.docx
+* results/ - _contains results files_
+  * docs/
+  * figures/
+  * tables/
+
+## Configuration
+
+This analysis requires the following packages:
+
+```{r}
+library(readxl)
+library(vtree)
+library(methylKit)
+library(BiocParallel)
+```
+
+I use the `BiocParallel` package to parallelise R with the following parameters:
+
+```{r}
+param <- MulticoreParam(workers = 10, progressbar = TRUE)
+```
+
+
+This analysis requires the following R configuration object:
+
+```{r}
+r.config <- readRDS(file = file.path("code","r_config.RDS"))
+```
+
+## Metadata
+
+```{r}
+metadata <- read_excel(path = file.path(r.config$dirs$data.dir, "metadata.xlsx"), sheet = "RRBS")
+metadata
+```
+
+I'll use the `vtree` package to visualise the experimental design.
+
+```{r}
+vtree(z = metadata, vars = c("Stimulated","DAC"))
+```
+
+# Analysis
+
+## 1. Filtering, tiling, and uniting the processed RRBS data
+
+There are two comparisons we want to make:
+
+  1. Stimulated vs unstimulated;
+  2. Stimulated + DAC vs timulated.
+  
+To call differential expression for these two comparisons, I'll create two separate objects containing subsets of the methylation data.
+
+```{r}
+meth.files <- list.files(path = file.path(r.config$dirs$augmented.data.dir,"01_rrbs_methylKit"), pattern = "CpG.txt")
+meth.files <- as.list(file.path(r.config$dirs$augmented.data.dir,"01_rrbs_methylKit", meth.files))
+
+meth.ids <- lapply(X = meth.files, FUN = function(X){
+  this.meth <- X
+  strsplit(x = this.meth, split = "/")[[1]][length(strsplit(x = this.meth, split = "/")[[1]])]
+})
+
+sample.names <- lapply(X = meth.ids, FUN = function(X){
+  this.meth <- X
+  strsplit(x = this.meth, split = "_")[[1]][1]
+})
+
+comparisons <- c("stimVsUnstim","dacVsStim")
+treatment <- rep(c(0,1),3)
+
+meth.data <- bplapply(X = comparisons, FUN = function(X){
+   this.comparison <- X
+   if(this.comparison=="stimVsUnstim"){
+     index <- which(x = metadata$DAC == "Untreated")
+   } else {
+     index <- which(x = metadata$Stimulated == "Stimulated")
+   }
+   meth.to.read <- meth.files[index]
+   meth.names <- sample.names[index]
+   meth.reading <- methRead(location = meth.to.read, sample.id = meth.names, assembly="hg19", context = "CpG", treatment = treatment)
+}, BPPARAM = param)
+```
+
+I'll filter, tile, and unite both sets of samples.
+
+```{r}
+meth.unite <- bplapply(X = meth.data, FUN = function(X){
+  methylObj <- X
+  filtered <- filterByCoverage(methylObj = methylObj, lo.count = 10, lo.perc = NULL, hi.count = NULL, hi.perc = 99.9)
+  tiled <- tileMethylCounts(object = filtered, win.size = 200, step.size = 200)
+  unite <- unite(object = tiled, destrand = TRUE)
+}, BPPARAM = param)
+```
+
+## 2. calculating differential methylation
+
+```{r}
+meth.diff <- bplapply(X = meth.unite, FUN = function(X){
+  meth.base <- X
+  meth.diff <- calculateDiffMeth(.Object = meth.base, mc.cores = 10)
+}, BPPARAM = param)
+```
+
+I'll write out the two `meth.diff` objects.
+
+```{r}
+saveRDS(object = meth.diff[[1]], file = file.path(r.config$dirs$augmented.data.dir,"01_rrbs_methylKit","methylKit_methDiff_StimVsUnstim.RDS"))
+saveRDS(object = meth.diff[[2]], file = file.path(r.config$dirs$augmented.data.dir,"01_rrbs_methylKit","methylKit_methDiff_StimDACVsStim.RDS"))
+```
+
+## 3. Visualising the distribution of differential methylation values
+
+```{r}
+main <- c("Stimulated Vs Unstimulated T-cells","Stimulated + DAC Vs Stimulated T-cells")
+xlim <- c(-100,100)
+xlab <- expression(paste(Delta," methylation (%)"))
+ylab <- expression(paste("-Log"[10],"(q-value)"))
+
+for(i in 1:length(meth.diff)){
+  x <- meth.diff[[i]]$meth.diff
+  q <- meth.diff[[i]]$qvalue
+  y <- -log10(x = q)
+  plot(x = x, y = y, xlim = xlim, xlab = xlab, ylab = ylab, col = "grey", pch = 20, las = 1, main = main[i])
+  abline(h = -log10(0.05), lty = 2, lwd = 1.5)
+}
+```
+
+```{r}
+fig.names <- c("RRBS_03_volcano.png","RRBS_S03_volcano.png")
+for(i in 1:length(meth.diff)){
+  x <- meth.diff[[i]]$meth.diff
+  q <- meth.diff[[i]]$qvalue
+  y <- -log10(x = q)
+  png.name <- file.path(r.config$dirs$figure.dir,fig.names[i])
+  png(filename = png.name, width = 4.5, height = 4.5, units = r.config$fig.specs$units, res = r.config$fig.specs$res, pointsize = r.config$fig.specs$pointsize)
+  plot(x = x, y = y, xlim = xlim, xlab = xlab, ylab = ylab, col = "grey", pch = 20, las = 1, main = main[i])
+  abline(h = -log10(0.05), lty = 2, lwd = 1.5)
+  dev.off()
+}
+```
+
+## 4. Identifying hypomethylated windows
+
+```{r}
+signif <- meth.diff[[2]][which(meth.diff[[2]]$qvalue <= 0.05),]
+xlim <- c(-100,100)
+ylim <- c(0,50)
+xlab <- expression(paste(Delta, " methylation (%)"))
+par(mar = c(4,4,2,2))
+hp <- hist(x = signif$meth.diff, plot = FALSE)
+x.max <- round(max(hp$counts), -5)
+hist(x = signif$meth.diff, col = "grey", main = "", xlim = xlim, las = 1, breaks = seq(-100,100,5), ylab = "Frequency (1,000 windows)", xlab = xlab, yaxt = "n")
+axis(side = 1)
+axis(side = 2, at = seq(0,50000,10000), labels = seq(0,50000,10000)/1000, las = 1)
+dens <- density(x = signif$meth.diff)
+this.min <- optimize(approxfun(dens$x,dens$y),interval=c(-50,0))$minimum
+abline(v = this.min, col = "black", lty = 2, lwd = 1.5)
+```
+
+
+```{r}
+png.name <- file.path(r.config$dirs$figure.dir,"RRBS_04_signifDeltaMeth.png")
+png(filename = png.name, width = 4.5, height = 4.5, units = r.config$fig.specs$units, res = r.config$fig.specs$res, pointsize = r.config$fig.specs$pointsize)
+par(mar = c(4,4,1,1))
+hist(x = signif$meth.diff, col = "grey", main = "", xlim = xlim, las = 1, breaks = seq(-100,100,5), axes = FALSE, ylab = "Frequency (1,000 windows)", xlab = xlab)
+axis(side = 1)
+axis(side = 2, at = seq(0,50000,10000), labels = seq(0,50000,10000)/1000, las = 1)
+abline(v = this.min, col = "black", lty = 2, lwd = 1.5)
+dev.off()
+```
+
+## 5. HOMER motif enrichment of the hypomethylated windows
+
+I'll create a bed file of all tiles within the library to compare against.
+
+```{r eval = FALSE}
+tiles <- tileMethylCounts(object = meth.unite[[2]], win.size = 200, step.size = 200, mc.cores = 10)
+tiles.bed <- data.frame(chromosome = tiles$chr, start = tiles$start, end = tiles$end, unique_peak_id = paste0("uid_",1:nrow(tiles)), not_used = "", strand = "*")
+write.table(x = tiles.bed, file = file.path(r.config$dirs$augmented.data.dir,"01_rrbs_methylKit","RRBS_allTiles.bed"), quote = FALSE, sep = "\t", row.names = FALSE, col.names = FALSE)
+```
+
+I'll now create a bed file of the statistically significantly hypomethylated tiles.
+
+```{r}
+signif.hypo <- signif[which(signif$meth.diff <= this.min),]
+signif.tiles.bed <- data.frame(chromosome = signif.hypo$chr, start = signif.hypo$start, end = signif.hypo$end, unique_peak_id = paste0("uid_",1:nrow(signif.hypo)), not_used = "", strand = "*")
+write.table(x = signif.tiles.bed, file = file.path(r.config$dirs$augmented.data.dir,"01_rrbs_methylKit","RRBS_signifHypoTiles.bed"), quote = FALSE, sep = "\t", row.names = FALSE, col.names = FALSE)
+```
+
+```{bash eval=FALSE}
+findMotifsGenome.pl data/03_augmented/01_rrbs_methylKit/RRBS_signifHypoTiles.bed hg19 data/03_augmented/02_rrbs_homer/hypomethTilesVsAllTiles -size 200 -p 10 -bg data/03_augmented/01_rrbs_methylKit/RRBS_allTiles.bed
+```
+
+```{r}
+homer <- read.table(file = file.path("data/03_augmented/02_rrbs_homer/hypomethTilesVsAllTiles","knownResults.txt"), header = FALSE, sep = "\t", skip = 1, col.names = c("Motif","Consensus","P-value","Log P-value","q-value","N FG","PC FG","N BG","PC BG"), stringsAsFactors = FALSE)
+head(homer)
+```
+
+```{r}
+mef.index <- grep(pattern = "Mef", x = homer$Motif, ignore.case = FALSE)
+mef.name <- grep(pattern = "Mef", x = homer$Motif, ignore.case = FALSE, value = TRUE)
+mef.name <- substr(x = mef.name, start = 1, stop = 5)
+mef.name <- toupper(mef.name)
+log.p <- homer$Log.P.value
+log.p <- log.p * -1
+point.col <- rep("black",nrow(homer))
+point.col[which(homer$q.value < 0.05)] <- "grey"
+ylab <- expression(paste("-Log"[10],"(p-value)"))
+y.at <- seq(0,15000,5000)
+y.labels <- prettyNum(x = y.at, big.mark = ",", big.interval = 3)
+par(mar = c(4,6,2,2))
+plot(x = 1:nrow(homer), y = log.p, xlab = "Rank", ylab = "", pch = 20, col = point.col, yaxt = "n")
+axis(side = 1)
+axis(side = 2, at = y.at, labels = y.labels, tick = TRUE, las = 1)
+mtext(text = ylab, side = 2, line = 4)
+points(x = mef.index, y = log.p[mef.index], pch = 20, col = r.config$simple.cols[3])
+text(x = mef.index, y = log.p[mef.index], labels = mef.name, adj = 0, pos = c(4,4,4,3))
+```
+
+
+```{r}
+png.name <- file.path(r.config$dirs$figure.dir,"RRBS_05_homerRanks.png")
+png(filename = png.name, width = 4.5, height = 4.5, units = r.config$fig.specs$units, res = r.config$fig.specs$res, pointsize = r.config$fig.specs$pointsize)
+par(mar = c(4,6,1,1))
+plot(x = 1:nrow(homer), y = log.p, xlab = "Rank", ylab = "", pch = 20, col = point.col, yaxt = "n")
+axis(side = 1)
+axis(side = 2, at = y.at, labels = y.labels, tick = TRUE, las = 1)
+mtext(text = ylab, side = 2, line = 4)
+points(x = mef.index, y = log.p[mef.index], pch = 20, col = r.config$simple.cols[3])
+text(x = mef.index, y = log.p[mef.index], labels = mef.name, adj = 0, pos = c(4,4,4,3))
+dev.off()
+```
+

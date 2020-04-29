@@ -78,7 +78,7 @@ echo "Trimming fastq files... completed."
 
 ## 2. Aligning to the bisulphite converted human genome using Bismark;
 
-```{bash}
+```{bash eval=FALSE}
 echo "Aligning trimmed fastq files..."
 module load bowtie/1.2.1.1 #version used as of Jan-31-2018: 1.2.1.1
 module load bismark/0.16.3
