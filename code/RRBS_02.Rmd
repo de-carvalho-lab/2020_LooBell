@@ -90,6 +90,12 @@ vtree(z = metadata, vars = c("Stimulated","DAC"))
 
 I'll use the `methylKit` R package to work with the RRBS. The RRBS sequencing reads were aligned to the hg38 genome with Bismark, thus I'll use the `processBismarkAln` function to process the bam files.
 
+```{bash eval=FALSE}
+mkdir data/03_augmented/01_rrbs_methylKit
+mkdir data/03_augmented/01_rrbs_methylKit/01_meth_percentage
+```
+
+
 ```{r eval=FALSE}
 bams <- as.list(list.files(path = file.path(r.config$dirs$clean.data.dir,"02_rrbs_bams"), pattern = "bam"))
 bam.locations <- as.list(file.path(r.config$dirs$clean.data.dir,"02_rrbs_bams",bams))
@@ -100,14 +106,14 @@ sample.name <- lapply(X = bams, FUN = function(X){
 })
 treatment <- rep(c(0,1,2),3)
 names(treatment) <- sample.name
-meth.raw <- processBismarkAln(location = bam.locations, sample.id = sample.name, assembly="hg19", read.context = "CpG", save.folder = file.path(r.config$dirs$augmented.data.dir,"01_rrbs_methylKit"), save.context = "CpG", treatment = treatment)
+meth.raw <- processBismarkAln(location = bam.locations, sample.id = sample.name, assembly="hg19", read.context = "CpG", save.folder = file.path(r.config$dirs$augmented.data.dir,"01_rrbs_methylKit","01_meth_percentage"), save.context = "CpG", treatment = treatment)
 ```
 
 Once `methylKit` has processed the bam files, it outputs text files summarising the methylation data for each sample. I've saved these in the directory `data/03_augmented/01_rrbs_methylKit`. These can be quickly read in using the `methRead()` function.
 
 ```{r}
-meth.files <- as.list(list.files(path = file.path(r.config$dirs$augmented.data.dir,"01_rrbs_methylKit"), pattern = "CpG.txt"))
-meth.files <- as.list(file.path(r.config$dirs$augmented.data.dir,"01_rrbs_methylKit",meth.files))
+meth.files <- as.list(list.files(path = file.path(r.config$dirs$augmented.data.dir,"01_rrbs_methylKit","01_meth_percentage"), pattern = "CpG.txt"))
+meth.files <- as.list(file.path(r.config$dirs$augmented.data.dir,"01_rrbs_methylKit","01_meth_percentage",meth.files))
 meth.ids <- lapply(X = meth.files, FUN = function(X){
   this.meth <- X
   strsplit(x = this.meth, split = "/")[[1]][length(strsplit(x = this.meth, split = "/")[[1]])]
@@ -126,10 +132,10 @@ meth.raw <- methRead(location = meth.files, sample.id = sample.name, assembly="h
 `MethylKit` outputs the bisulphite conversion rate of each sample alongside the methylation data as files named `_conversionStats.txt`.
 
 ```{r}
-stats.files <- list.files(path = file.path(r.config$dirs$augmented.data.dir,"01_rrbs_methylKit"), pattern = "_conversionStats.txt")
+stats.files <- list.files(path = file.path(r.config$dirs$augmented.data.dir,"01_rrbs_methylKit","01_meth_percentage"), pattern = "_conversionStats.txt")
 conversion.stats <- lapply(X = stats.files, FUN = function(X){
   this.file <- X
-  this.table <- read.table(text = gsub(pattern = ":|=", replacement = "\t", x = readLines(con = file.path(r.config$dirs$augmented.data.dir,"01_rrbs_methylKit",this.file))), sep = "\t", header = FALSE, skip = 2, stringsAsFactors = FALSE, col.names = c("Statistic","Count"), row.names = 1)
+  this.table <- read.table(text = gsub(pattern = ":|=", replacement = "\t", x = readLines(con = file.path(r.config$dirs$augmented.data.dir,"01_rrbs_methylKit","01_meth_percentage",this.file))), sep = "\t", header = FALSE, skip = 2, stringsAsFactors = FALSE, col.names = c("Statistic","Count"), row.names = 1)
 })
 names(conversion.stats) <- stats.files
 ```

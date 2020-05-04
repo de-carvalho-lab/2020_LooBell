@@ -85,4 +85,4 @@ These are the arguments to MACS2 we used to call nucleosome-free regions.
 macs2 callpeak -t $BAM -g hs -n $OUTNAME -q 0.25 --nomodel --shift -100 --extsize 200
 ```
 
-The resulting narrowPeak files are located at `data/03_augmented/03_atac_narrowPeaks`.
+The resulting narrowPeak files are located at `data/03_augmented/03_atac_nfrs/01_narrowPeaks`.

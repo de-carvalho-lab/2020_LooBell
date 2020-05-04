@@ -2903,6 +2903,8 @@ metadata</code></pre>
 <div id="calling-base-level-methylation-percentage" class="section level2">
 <h2>1. Calling base-level methylation percentage</h2>
 <p>I’ll use the <code>methylKit</code> R package to work with the RRBS. The RRBS sequencing reads were aligned to the hg38 genome with Bismark, thus I’ll use the <code>processBismarkAln</code> function to process the bam files.</p>
+<pre class="bash"><code>mkdir data/03_augmented/01_rrbs_methylKit
+mkdir data/03_augmented/01_rrbs_methylKit/01_meth_percentage</code></pre>
 <pre class="r"><code>bams &lt;- as.list(list.files(path = file.path(r.config$dirs$clean.data.dir,&quot;02_rrbs_bams&quot;), pattern = &quot;bam&quot;))
 bam.locations &lt;- as.list(file.path(r.config$dirs$clean.data.dir,&quot;02_rrbs_bams&quot;,bams))
 bam.locations
@@ -2912,10 +2914,10 @@ sample.name &lt;- lapply(X = bams, FUN = function(X){
 })
 treatment &lt;- rep(c(0,1,2),3)
 names(treatment) &lt;- sample.name
-meth.raw &lt;- processBismarkAln(location = bam.locations, sample.id = sample.name, assembly=&quot;hg19&quot;, read.context = &quot;CpG&quot;, save.folder = file.path(r.config$dirs$augmented.data.dir,&quot;01_rrbs_methylKit&quot;), save.context = &quot;CpG&quot;, treatment = treatment)</code></pre>
+meth.raw &lt;- processBismarkAln(location = bam.locations, sample.id = sample.name, assembly=&quot;hg19&quot;, read.context = &quot;CpG&quot;, save.folder = file.path(r.config$dirs$augmented.data.dir,&quot;01_rrbs_methylKit&quot;,&quot;01_meth_percentage&quot;), save.context = &quot;CpG&quot;, treatment = treatment)</code></pre>
 <p>Once <code>methylKit</code> has processed the bam files, it outputs text files summarising the methylation data for each sample. I’ve saved these in the directory <code>data/03_augmented/01_rrbs_methylKit</code>. These can be quickly read in using the <code>methRead()</code> function.</p>
-<pre class="r"><code>meth.files &lt;- as.list(list.files(path = file.path(r.config$dirs$augmented.data.dir,&quot;01_rrbs_methylKit&quot;), pattern = &quot;CpG.txt&quot;))
-meth.files &lt;- as.list(file.path(r.config$dirs$augmented.data.dir,&quot;01_rrbs_methylKit&quot;,meth.files))
+<pre class="r"><code>meth.files &lt;- as.list(list.files(path = file.path(r.config$dirs$augmented.data.dir,&quot;01_rrbs_methylKit&quot;,&quot;01_meth_percentage&quot;), pattern = &quot;CpG.txt&quot;))
+meth.files &lt;- as.list(file.path(r.config$dirs$augmented.data.dir,&quot;01_rrbs_methylKit&quot;,&quot;01_meth_percentage&quot;,meth.files))
 meth.ids &lt;- lapply(X = meth.files, FUN = function(X){
   this.meth &lt;- X
   strsplit(x = this.meth, split = &quot;/&quot;)[[1]][length(strsplit(x = this.meth, split = &quot;/&quot;)[[1]])]
@@ -2931,10 +2933,10 @@ meth.raw &lt;- methRead(location = meth.files, sample.id = sample.name, assembly
 <div id="visualising-the-bisulphite-conversion-rates-of-each-sample" class="section level2">
 <h2>2. Visualising the bisulphite conversion rates of each sample</h2>
 <p><code>MethylKit</code> outputs the bisulphite conversion rate of each sample alongside the methylation data as files named <code>_conversionStats.txt</code>.</p>
-<pre class="r"><code>stats.files &lt;- list.files(path = file.path(r.config$dirs$augmented.data.dir,&quot;01_rrbs_methylKit&quot;), pattern = &quot;_conversionStats.txt&quot;)
+<pre class="r"><code>stats.files &lt;- list.files(path = file.path(r.config$dirs$augmented.data.dir,&quot;01_rrbs_methylKit&quot;,&quot;01_meth_percentage&quot;), pattern = &quot;_conversionStats.txt&quot;)
 conversion.stats &lt;- lapply(X = stats.files, FUN = function(X){
   this.file &lt;- X
-  this.table &lt;- read.table(text = gsub(pattern = &quot;:|=&quot;, replacement = &quot;\t&quot;, x = readLines(con = file.path(r.config$dirs$augmented.data.dir,&quot;01_rrbs_methylKit&quot;,this.file))), sep = &quot;\t&quot;, header = FALSE, skip = 2, stringsAsFactors = FALSE, col.names = c(&quot;Statistic&quot;,&quot;Count&quot;), row.names = 1)
+  this.table &lt;- read.table(text = gsub(pattern = &quot;:|=&quot;, replacement = &quot;\t&quot;, x = readLines(con = file.path(r.config$dirs$augmented.data.dir,&quot;01_rrbs_methylKit&quot;,&quot;01_meth_percentage&quot;,this.file))), sep = &quot;\t&quot;, header = FALSE, skip = 2, stringsAsFactors = FALSE, col.names = c(&quot;Statistic&quot;,&quot;Count&quot;), row.names = 1)
 })
 names(conversion.stats) &lt;- stats.files</code></pre>
 <pre class="r"><code>conversion.stats.ma &lt;- matrix(data = unlist(conversion.stats), nrow = 6, ncol = 9, byrow = FALSE)

@@ -101,8 +101,8 @@ There are two comparisons we want to make:
 To call differential expression for these two comparisons, I'll create two separate objects containing subsets of the methylation data.
 
 ```{r}
-meth.files <- list.files(path = file.path(r.config$dirs$augmented.data.dir,"01_rrbs_methylKit"), pattern = "CpG.txt")
-meth.files <- as.list(file.path(r.config$dirs$augmented.data.dir,"01_rrbs_methylKit", meth.files))
+meth.files <- list.files(path = file.path(r.config$dirs$augmented.data.dir,"01_rrbs_methylKit","01_meth_percentage"), pattern = "CpG.txt")
+meth.files <- as.list(file.path(r.config$dirs$augmented.data.dir,"01_rrbs_methylKit","01_meth_percentage", meth.files))
 
 meth.ids <- lapply(X = meth.files, FUN = function(X){
   this.meth <- X
@@ -152,9 +152,14 @@ meth.diff <- bplapply(X = meth.unite, FUN = function(X){
 
 I'll write out the two `meth.diff` objects.
 
+```{bash eval=FALSE}
+mkdir data/03_augmented/01_rrbs_methylKit/02_differential_methylation
+```
+
+
 ```{r}
-saveRDS(object = meth.diff[[1]], file = file.path(r.config$dirs$augmented.data.dir,"01_rrbs_methylKit","methylKit_methDiff_StimVsUnstim.RDS"))
-saveRDS(object = meth.diff[[2]], file = file.path(r.config$dirs$augmented.data.dir,"01_rrbs_methylKit","methylKit_methDiff_StimDACVsStim.RDS"))
+saveRDS(object = meth.diff[[1]], file = file.path(r.config$dirs$augmented.data.dir,"01_rrbs_methylKit","02_differential_methylation","methylKit_methDiff_StimVsUnstim.RDS"))
+saveRDS(object = meth.diff[[2]], file = file.path(r.config$dirs$augmented.data.dir,"01_rrbs_methylKit","02_differential_methylation","methylKit_methDiff_StimDACVsStim.RDS"))
 ```
 
 I'll also write these out as a supplementary table.
@@ -201,6 +206,12 @@ for(i in 1:length(meth.diff)){
 
 ```{r}
 signif <- meth.diff[[2]][which(meth.diff[[2]]$qvalue <= 0.05),]
+dens <- density(x = signif$meth.diff)
+this.min <- optimize(approxfun(dens$x,dens$y),interval=c(-50,0))$minimum
+```
+
+
+```{r}
 xlim <- c(-100,100)
 ylim <- c(0,50)
 xlab <- expression(paste(Delta, " methylation (%)"))
@@ -210,8 +221,6 @@ x.max <- round(max(hp$counts), -5)
 hist(x = signif$meth.diff, col = "grey", main = "", xlim = xlim, las = 1, breaks = seq(-100,100,5), ylab = "Frequency (1,000 windows)", xlab = xlab, yaxt = "n")
 axis(side = 1)
 axis(side = 2, at = seq(0,50000,10000), labels = seq(0,50000,10000)/1000, las = 1)
-dens <- density(x = signif$meth.diff)
-this.min <- optimize(approxfun(dens$x,dens$y),interval=c(-50,0))$minimum
 abline(v = this.min, col = "black", lty = 2, lwd = 1.5)
 ```
 
@@ -234,7 +243,7 @@ I'll create a bed file of all tiles within the library to compare against.
 ```{r eval = FALSE}
 tiles <- tileMethylCounts(object = meth.unite[[2]], win.size = 200, step.size = 200, mc.cores = 10)
 tiles.bed <- data.frame(chromosome = tiles$chr, start = tiles$start, end = tiles$end, unique_peak_id = paste0("uid_",1:nrow(tiles)), not_used = "", strand = "*")
-write.table(x = tiles.bed, file = file.path(r.config$dirs$augmented.data.dir,"01_rrbs_methylKit","RRBS_allTiles.bed"), quote = FALSE, sep = "\t", row.names = FALSE, col.names = FALSE)
+write.table(x = tiles.bed, file = file.path(r.config$dirs$augmented.data.dir,"02_rrbs_homer","RRBS_allTiles.bed"), quote = FALSE, sep = "\t", row.names = FALSE, col.names = FALSE)
 ```
 
 I'll now create a bed file of the statistically significantly hypomethylated tiles.
@@ -242,15 +251,15 @@ I'll now create a bed file of the statistically significantly hypomethylated til
 ```{r}
 signif.hypo <- signif[which(signif$meth.diff <= this.min),]
 signif.tiles.bed <- data.frame(chromosome = signif.hypo$chr, start = signif.hypo$start, end = signif.hypo$end, unique_peak_id = paste0("uid_",1:nrow(signif.hypo)), not_used = "", strand = "*")
-write.table(x = signif.tiles.bed, file = file.path(r.config$dirs$augmented.data.dir,"01_rrbs_methylKit","RRBS_signifHypoTiles.bed"), quote = FALSE, sep = "\t", row.names = FALSE, col.names = FALSE)
+write.table(x = signif.tiles.bed, file = file.path(r.config$dirs$augmented.data.dir,"02_rrbs_homer","RRBS_signifHypoTiles.bed"), quote = FALSE, sep = "\t", row.names = FALSE, col.names = FALSE)
 ```
 
 ```{bash eval=FALSE}
-findMotifsGenome.pl data/03_augmented/01_rrbs_methylKit/RRBS_signifHypoTiles.bed hg19 data/03_augmented/02_rrbs_homer/hypomethTilesVsAllTiles -size 200 -p 10 -bg data/03_augmented/01_rrbs_methylKit/RRBS_allTiles.bed
+findMotifsGenome.pl data/03_augmented/02_rrbs_homer/RRBS_signifHypoTiles.bed hg19 data/03_augmented/02_rrbs_homer/01_signifHypoTilesVsAllTiles -size 200 -p 10 -bg data/03_augmented/02_rrbs_homer/RRBS_allTiles.bed
 ```
 
 ```{r}
-homer <- read.table(file = file.path("data/03_augmented/02_rrbs_homer/hypomethTilesVsAllTiles","knownResults.txt"), header = FALSE, sep = "\t", skip = 1, col.names = c("Motif","Consensus","P-value","Log P-value","q-value","N FG","PC FG","N BG","PC BG"), stringsAsFactors = FALSE)
+homer <- read.table(file = file.path("data/03_augmented/02_rrbs_homer/01_signifHypoTilesVsAllTiles","knownResults.txt"), header = FALSE, sep = "\t", skip = 1, col.names = c("Motif","Consensus","P-value","Log P-value","q-value","N FG","PC FG","N BG","PC BG"), stringsAsFactors = FALSE)
 head(homer)
 ```
 

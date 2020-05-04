@@ -1,0 +1,168 @@
+---
+title: 'ATAC_06 - Performing HOMER motif enrichment on nucleosome-free regions from each sample group'
+author: "Emma Bell"
+date: '2020-05-01'
+output:
+  html_document:
+    df_print: paged
+    toc: yes
+    toc_float: true
+    toc_depth: 2
+    fig_caption: true
+---
+
+# Summary
+
+This R Notebook contains code pertaining to the paper Loo and Bell _et al._ (2020) _Nature Medicine_.
+
+* Aim: To perform HOMER motif enrichment on nucleosome-free regions from each sample group.
+* Objectives:
+  1. To create subsets if nucleosome-free regions unique to each sample group; 
+  2. To perform HOMER motif enrichment on the nucleosome-free regions from and unique to each sample group;
+  3. To visualise the results of the HOMER motif enrichment analysis.
+
+To run these scripts we assume a directory structure as described in the README accompanying this GitHub. I.e.
+
+* code/ - _contains R Notebook(s) and the resulting HTML file(s)_
+  * 00A - Sequencing read pre-processing
+  * 00B - R configuration
+  * RRBS_01 - Sequencing read alignment with Bismark
+  * RRBS_02 - Calling base level methylation with MethylKit
+  * RRBS_03 - Calculating differential methylation with MethylKit
+  * ATAC_04 - Calling nucleosome-free regions with MACS2
+  * ATAC_05 - Quantifying nucleosome-free regions
+  * ATAC_06 - Defining nucleosome-free regions unique to the DAC sample group for HOMER motif enrichment
+  * RNA_07 - Quantifying transcript expression with Kallisto
+  * RNA_08 - Calling differential transcript expression with Sleuth
+  * RNA_09 - Gene-set enrichment with CensensusPathDB and limma
+* data/ - _contains any data used in this project_
+  * 01_raw/
+  * 02_clean/
+  * 03_augmented/
+* docs/ - _contains any documents pertaining to this project_
+  * Presentation_plan_template.docx
+  * Presentation_template.pptx
+  * Research_project_plan.docx
+* results/ - _contains results files_
+  * docs/
+  * figures/
+  * tables/
+
+## Configuration
+
+This analysis requires the following packages:
+
+```{r}
+library(readxl)
+library(vtree)
+library(BiocParallel)
+library(GenomicRanges)
+```
+
+I use the `BiocParallel` package to parallelise R with the following parameters:
+
+```{r}
+param <- MulticoreParam(workers = 10, progressbar = TRUE)
+```
+
+This analysis requires the following R configuration object:
+
+```{r}
+r.config <- readRDS(file = file.path("code","r_config.RDS"))
+```
+
+## Metadata
+
+```{r}
+metadata <- read_excel(path = file.path(r.config$dirs$data.dir, "metadata.xlsx"), sheet = "ATAC")
+metadata
+```
+
+I'll use the `vtree` package to visualise the experimental design.
+
+```{r}
+vtree(z = metadata, vars = c("Stimulated","DAC"))
+```
+
+# Analysis
+
+## 1. Creating subsets if nucleosome-free regions unique to each sample group 
+
+I'll perform HOMER motif enrichment analysis comparing the nucleosome-free regions unique to stimulated and DAC treated and the stimulated and untreated sample groups against background of all peaks within the library.
+
+To do this, I'll first output bed files containing these subsets of peaks.
+
+```{bash eval=FALSE}
+mkdir data/03_augmented/04_atac_homer
+```
+
+
+```{r}
+atac.group <- readRDS(file = file.path(r.config$dirs$augmented.data.dir,"03_atac_nfrs","atac_nfrs_byGroup.RDS"))
+```
+
+```{r}
+overlaps <- findOverlaps(query = atac.group[[2]], subject = atac.group[[3]])
+stim.unique <- atac.group[[2]][-queryHits(overlaps)]
+dac.unique <- atac.group[[3]][-subjectHits(overlaps)]
+
+unique.nfrs <- list(stim.unique,dac.unique)
+names(unique.nfrs) <- c("stim_unique","dac_unique")
+for(i in 1:length(unique.nfrs)){
+  this.group <- unique.nfrs[[i]]
+  this.group.name <- names(unique.nfrs)[i]
+  this.bed <- data.frame(chr = seqnames(this.group), start = start(this.group), end = end(this.group), id = paste("uid", 1:length(this.group), sep = "_"), blank = "", strand = "*")
+  write.to <- file.path(r.config$dirs$augmented.data.dir,"04_atac_homer",paste0(this.group.name,".bed"))
+  write.table(x = this.bed, file = write.to, sep = "\t", row.names = FALSE, col.names = FALSE, quote = FALSE)
+}
+```
+
+I'll also do this against the entire library.
+
+```{r}
+all.peaks <- c(atac.group[[1]],atac.group[[2]],atac.group[[3]])
+lib.df <- data.frame(chr = seqnames(all.peaks), start = start(all.peaks), end = end(all.peaks), id = paste("uid", 1:length(all.peaks), sep = "_"), blank = "", strand = "*")
+write.table(x = lib.df, file = file.path(r.config$dirs$augmented.data.dir,"04_atac_homer","atac_library.bed"), sep = "\t", row.names = FALSE, col.names = FALSE, quote = FALSE)
+```
+
+## 2. HOMER motif enrichment on the nucleosome-free regions from and unique to each sample group
+
+I'll make these comparisons:
+
+- Stimulated (unique) vs All 
+- Stimulated + DAC (unique) vs All
+
+```{bash eval=FALSE}
+findMotifsGenome.pl data/03_augmented/04_atac_homer/stim_unique.bed hg19 data/03_augmented/04_atac_homer/01_stimVsAll -size given -p 10 -bg data/03_augmented/04_atac_homer/atac_library.bed
+findMotifsGenome.pl data/03_augmented/04_atac_homer/dac_unique.bed hg19 data/03_augmented/04_atac_homer/01_dacVsAll -size given -p 10 -bg data/03_augmented/04_atac_homer/atac_library.bed
+```
+
+## 3. Visualising the results of the HOMER motif enrichment analysis
+
+```{r}
+homer <- read.table(file = file.path(r.config$dirs$augmented.data.dir,"04_atac_homer","01_dacVsAll","knownResults.txt"), header = FALSE, sep = "\t", skip = 1, col.names = c("Motif","Consensus","P-value","Log P-value","q-value","N FG","PC FG","N BG","PC BG"), stringsAsFactors = FALSE)
+```
+
+```{r}
+index <- which(x = homer$q.value <= 0.05)[1:6]
+name <- homer$Motif[index]
+name <- substr(x =name, start = 1, stop = 4)
+ylab <- expression(paste("-Log"[10],"(P-value)"))
+log.p <- homer$Log.P.value
+log.p <- log.p * -1
+point.col <- rep("black",nrow(homer))
+point.col[which(homer$q.value < 0.05)] <- "grey"
+plot(x = 1:nrow(homer), y = log.p, pch = 20, col = point.col, xlab = "Rank", ylab = ylab, las = 1)
+text(x = index, y = log.p[index], labels = name, adj = 0, pos = c(4,3))
+```
+
+
+```{r}
+png.name <- file.path(r.config$dirs$figure.dir,"ATAC_03_homerRanks.png")
+png(filename = png.name, width = 4.5, height = 4.5, units = r.config$fig.specs$units, res = r.config$fig.specs$res, pointsize = r.config$fig.specs$pointsize)
+par(mar = c(4,4,1,1))
+plot(x = 1:nrow(homer), y = log.p, pch = 20, col = point.col, xlab = "Rank", ylab = ylab, las = 1)
+# text(x = index, y = log.p[index], labels = name, adj = 0, pos = c(4,3))
+dev.off()
+```
+
