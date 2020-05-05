@@ -209,6 +209,11 @@ counts
 ```
 
 ```{r}
+counts.noUnstim <- makeVennDiagram(Peaks = atac.groups[2:3])
+```
+
+
+```{r}
 counts.expression <- c(Unstimulated = counts$vennCounts[5,4], Stimulated = counts$vennCounts[3,4], `Stimulated+DAC` = counts$vennCounts[2,4], `Unstimulated&Stimulated` = counts$vennCounts[7,4], `Unstimulated&Stimulated+DAC` = counts$vennCounts[6,4], `Stimulated&Stimulated+DAC` = counts$vennCounts[4,4], `Unstimulated&Stimulated&Stimulated+DAC` = counts$vennCounts[8,4])
 names(counts.expression) <- gsub(pattern = ".Counts", replacement = "", x = names(counts.expression))
 counts.expression
@@ -219,10 +224,22 @@ counts.expression
 upset(fromExpression(counts.expression), sets.bar.color = r.config$simple.cols, sets = c("Unstimulated","Stimulated","Stimulated+DAC"), keep.order = TRUE)
 ```
 
+```{r}
+labels <- format(as.numeric(counts.expression), big.mark=",")
+ylab <- "# NFRs (thousands)"
+ylim <- c(0,max(counts.expression/1000) * 1.1)
+bp.x <- barplot(height = counts.expression, plot = FALSE) 
+barplot(height = counts.expression/1000, col = "grey", ylim = ylim, names.arg = NA, las = 1, ylab = ylab)
+text(x = bp.x, y = counts.expression/1000 + (ylim[2] * 0.05), labels = labels, adj = 0.5)
+```
+
 
 ```{r}
 png.name <- file.path(r.config$dirs$figure.dir,"ATAC_02_NFRupset.png")
-png(filename = png.name, width = 10, height = 10, units = r.config$fig.specs$units, res = r.config$fig.specs$res, pointsize = r.config$fig.specs$pointsize)
-upset(fromExpression(counts.expression), sets.bar.color = r.config$simple.cols, sets = c("Unstimulated","Stimulated","Stimulated+DAC"), keep.order = TRUE, text.scale = 0.2)
+png(filename = png.name, width = 6, height = 3, units = r.config$fig.specs$units, res = r.config$fig.specs$res, pointsize = r.config$fig.specs$pointsize)
+par(mar = c(1,4,1,1))
+barplot(height = counts.expression/1000, col = "grey", ylim = ylim, names.arg = NA, las = 1, ylab = ylab)
+text(x = bp.x, y = counts.expression/1000 + (ylim[2] * 0.05), labels = labels, adj = 0.5)
 dev.off()
 ```
+

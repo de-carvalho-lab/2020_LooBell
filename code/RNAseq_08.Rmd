@@ -1,0 +1,118 @@
+---
+title: 'RNAseq_08 - Gene-set enrichment with ConsensusPathDB and limma'
+author: "Emma Bell"
+date: '2020-05-04'
+output:
+  html_document:
+    df_print: paged
+    toc: yes
+    toc_float: true
+    toc_depth: 2
+    fig_caption: true
+---
+
+# Summary
+
+This R Notebook contains code pertaining to the paper Loo and Bell _et al._ (2020) _Nature Medicine_.
+
+* Aim: To perform gene-set enrichment with ConsensusPathDB and limma
+* Objectives:
+  1. To perform gene-set enrichment;
+  2. To visualise the differential transcript expression of candidate pathways.
+
+To run these scripts we assume a directory structure as described in the README accompanying this GitHub. I.e.
+
+* code/ - _contains R Notebook(s) and the resulting HTML file(s)_
+  * 00A - Sequencing read pre-processing
+  * 00B - R configuration
+  * RRBS_01 - Sequencing read alignment with Bismark
+  * RRBS_02 - Calling base level methylation with MethylKit
+  * RRBS_03 - Calculating differential methylation with MethylKit
+  * ATAC_04 - Calling nucleosome-free regions with MACS2
+  * ATAC_05 - Quantifying nucleosome-free regions
+  * ATAC_06 - Defining nucleosome-free regions unique to the DAC sample group for HOMER motif enrichment
+  * RNAseq_07 - Quantifying transcript abundance and differential expression with Kallisto and Sleuth
+  * RNAseq_08 - Gene-set enrichment with ConsensusPathDB and limma
+* data/ - _contains any data used in this project_
+  * 01_raw/
+  * 02_clean/
+  * 03_augmented/
+* docs/ - _contains any documents pertaining to this project_
+  * Presentation_plan_template.docx
+  * Presentation_template.pptx
+  * Research_project_plan.docx
+* results/ - _contains results files_
+  * docs/
+  * figures/
+  * tables/
+
+## Configuration
+
+This analysis requires the following packages:
+
+```{r}
+library(readxl)
+library(vtree)
+library(BiocParallel)
+library(limma)
+library(writexl)
+library(pheatmap)
+```
+
+I use the `BiocParallel` package to parallelise R with the following parameters:
+
+```{r}
+param <- MulticoreParam(workers = 10, progressbar = TRUE)
+```
+
+This analysis requires the following R configuration object:
+
+```{r}
+r.config <- readRDS(file = file.path("code","r_config.RDS"))
+```
+
+## Metadata
+
+```{r}
+metadata <- read_excel(path = file.path(r.config$dirs$data.dir, "metadata.xlsx"), sheet = "RNAseq")
+metadata
+```
+
+I'll use the `vtree` package to visualise the experimental design.
+
+```{r}
+vtree(z = metadata, vars = c("Stimulated","DAC"))
+```
+
+# Analysis
+
+## 1. Performing gene-set enrichment
+
+For gene-set enrichment I use a list of pathways downloaded from ConsensusPathDB.
+
+```{r}
+sleuth.de <- read.table(file = file.path(r.config$dirs$augmented.data.dir,"05_rnaseq_kallisto","02_sleuth","sleuthDE_DACvsStim.txt"), header = TRUE, sep = "\t", stringsAsFactors = FALSE)
+pathways <- read.table(file = file.path(r.config$dirs$augmented.data.dir,"05_rnaseq_kallisto","04_geneSetEnrichment","CPDB_pathways_genes.tab"), header = TRUE, sep = "\t", stringsAsFactors = FALSE, comment.char = "")
+```
+
+```{r}
+gene.names <- sapply(X = sleuth.de$target_id, FUN = function(X) strsplit(x = X, split = "\\|")[[1]][6])
+```
+
+
+```{r}
+pathway.genes <- bplapply(X = seq_along(1:nrow(pathways)), FUN = function(i) strsplit(as.character(pathways$hgnc_symbol_ids[i]),split=",")[[1]], BPPARAM = param)
+names(pathway.genes) <- pathways$pathway
+```
+
+```{r eval=FALSE}
+pathway.enrichments <- bplapply(X = pathway.genes, FUN = function(X){
+  geneSetTest(index = which(gene.names %in% X), statistics = sleuth.de$test_stat, ranks.only = FALSE, type = "f", alternative = "mixed")
+}, BPPARAM = param)
+pathway.enrichments.df <- cbind.data.frame(pathways, pval = unlist(pathway.enrichments), stringsAsFactors = FALSE)
+pathway.enrichments.df$adjPVal <- p.adjust(pathway.enrichments.df$pval, method = "BH")
+pathway.enrichments.df <- pathway.enrichments.df[order(pathway.enrichments.df$adjPVal),]
+write.table(x = pathway.enrichments.df, file = file.path(r.config$dirs$augmented.data.dir,"05_rnaseq_kallisto","04_geneSetEnrichment","pathwayEnrichments.txt"), sep = "\t", quote = FALSE, row.names = FALSE)
+write_xlsx(x = pathway.enrichments.df, path = file.path(r.config$dirs$table.dir,"RNAseq_SupplementaryTable_03.xlsx"), col_names = TRUE, format_headers = TRUE)
+```
+

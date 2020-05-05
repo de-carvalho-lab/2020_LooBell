@@ -165,21 +165,30 @@ dev.off()
 ## 5. Getting lists of the top genes driving PC1 and PC2
 
 ```{r}
-rotation <- pc$rotation[,1]
-# rotation.abs <- abs(rotation)
-rotation.abs <- sort(rotation,decreasing = T)
-drivers <- names(rotation.abs)[1:10]
-driver.genes <- sapply(drivers,function(x) strsplit(x,split = "\\|")[[1]][6])
-barplot(height = rotation.abs[1:10], names = driver.genes, las=2 , cex.names = 0.8, main = axis.names[1])
+rotation <- list(pc$rotation[,1],pc$rotation[,2])
+rotation.abs <- lapply(X = rotation, FUN = function(X){
+  this.rotation <- X
+  rotation.abs <- abs(this.rotation)
+  rotation.abs <- sort(x = rotation.abs, decreasing = TRUE)
+  rotation.abs[1:(length(rotation.abs)*0.01)]
+})
 ```
 
 ```{r}
-rotation <- pc$rotation[,2]
-# rotation.abs <- abs(rotation)
-rotation.abs <- sort(rotation,decreasing = T)
-drivers <- names(rotation.abs)[1:10]
-driver.genes <- sapply(drivers,function(x) strsplit(x,split = "\\|")[[1]][6])
-barplot(height = rotation.abs[1:10], names = driver.genes, las=2 , cex.names = 0.8, main = axis.names[2])
+drivers <- lapply(X = rotation.abs, FUN = function(X){
+  gene.info <- names(X)
+  gene.info <- sapply(X = gene.info, FUN = function(X){
+    these.drivers <- strsplit(x = X, split = "\\|")[[1]][c(1,2,5,6)]
+  })
+  this.df <- data.frame(matrix(data = gene.info, ncol = 4, byrow = TRUE), stringsAsFactors = FALSE)
+  colnames(this.df) <- c("TranscriptID","GeneID","TranscriptName","GeneName")
+  this.df
+})
+names(drivers) <- c("PC1","PC2")
+```
+
+```{r eval=FALSE}
+write_xlsx(x = drivers, path = file.path(r.config$dirs$table.dir,"RNAseq_SupplementaryTable_02.xlsx"), col_names = TRUE, format_headers = TRUE)
 ```
 
 ## 6. Visualising the differentially expressed transcripts at a heatmap.
@@ -187,6 +196,7 @@ barplot(height = rotation.abs[1:10], names = driver.genes, las=2 , cex.names = 0
 ```{r}
 signif <- sleuth.de$target_id[which(sleuth.de$qval <= 0.05)]
 annotation_col <- data.frame(metadata[,3:5])
+colnames(annotation_col)[1] <- "Donor"
 rownames(annotation_col) <- colnames(tpm)
 ```
 
