@@ -111,8 +111,38 @@ pathway.enrichments <- bplapply(X = pathway.genes, FUN = function(X){
 }, BPPARAM = param)
 pathway.enrichments.df <- cbind.data.frame(pathways, pval = unlist(pathway.enrichments), stringsAsFactors = FALSE)
 pathway.enrichments.df$adjPVal <- p.adjust(pathway.enrichments.df$pval, method = "BH")
+pathway.enrichments.df$NegLog10AdjPVal <- -1 * log10(pathway.enrichments.df$adjPVal)
 pathway.enrichments.df <- pathway.enrichments.df[order(pathway.enrichments.df$adjPVal),]
 write.table(x = pathway.enrichments.df, file = file.path(r.config$dirs$augmented.data.dir,"05_rnaseq_kallisto","04_geneSetEnrichment","pathwayEnrichments.txt"), sep = "\t", quote = FALSE, row.names = FALSE)
 write_xlsx(x = pathway.enrichments.df, path = file.path(r.config$dirs$table.dir,"RNAseq_SupplementaryTable_03.xlsx"), col_names = TRUE, format_headers = TRUE)
+```
+
+```{r}
+pathway.enrichments.xlsx <- read_excel(path = file.path(r.config$dirs$table.dir,"RNAseq_SupplementaryTable_03.xlsx"))
+classesToPlot <- c("Calcium","MAPK","NFAT","PI3K","Wnt")
+pathways.toPlot <- pathway.enrichments.xlsx[which(pathway.enrichments.xlsx$adjPVal <= 0.05 & pathway.enrichments.xlsx$Class %in% classesToPlot),]
+pathways.toPlot <- pathways.toPlot[order(pathways.toPlot$Class, decreasing = TRUE),]
+pathways.toPlot
+```
+
+```{r}
+write_xlsx(x = pathways.toPlot, path = file.path(r.config$dirs$figure.dir,"RNAseq_S01_pathwayEnrichment.xlsx"), col_names = TRUE, format_headers = TRUE)
+```
+
+
+```{r}
+xlab <- expression(paste("-Log"[10],"(Adj. P-value)"))
+par(mar = c(4,1,1,1))
+barplot(height = pathways.toPlot$negLog10AdjP, horiz = TRUE, xlab = xlab)
+abline(v = (-1*log10(0.05)), lwd = 2, lty = 2)
+```
+
+```{r}
+png.name <- file.path(r.config$dirs$figure.dir,"RNAseq_03_pathwayEnrichment.png")
+png(filename = png.name, width = 3, height = r.config$fig.specs$height, units = r.config$fig.specs$units, res = r.config$fig.specs$res, pointsize = r.config$fig.specs$pointsize)
+par(mar = c(4,1,1,1))
+barplot(height = pathways.toPlot$negLog10AdjP, horiz = TRUE, xlab = xlab)
+abline(v = (-1*log10(0.05)), lwd = 2, lty = 2)
+dev.off()
 ```
 
