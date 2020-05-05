@@ -92,12 +92,13 @@ vtree(z = metadata, vars = c("Stimulated","DAC"))
 ## 1. Visualising the number of nucleosome-free regions in each sample
 
 ```{r}
+signif <- -10*log10(0.05)
 atac.peaks <- bplapply(X = metadata$File, FUN = function(X){
   to.read <- X
   this.result <- read.table(file = file.path(r.config$dirs$augmented.data.dir,"03_atac_nfrs","01_narrowPeaks",to.read), stringsAsFactors = FALSE)
   this.result.gr <- GRanges(seqnames = this.result[,1], ranges = IRanges(start = this.result[,2], end = this.result[,3]))
-  mcols(this.result.gr) <- cbind.data.frame(read.counts = this.result[,4])
-  this.result.gr
+  mcols(this.result.gr) <- cbind.data.frame(peak.id = this.result[,4], negLog10Q = this.result[,5])
+  this.result.gr[mcols(this.result.gr)$negLog10Q >= signif]
 }, BPPARAM = param)
 ```
 
@@ -107,6 +108,18 @@ num.peaks <- matrix(data = num.peaks, nrow = 3, ncol = 3, byrow = FALSE)
 colnames(num.peaks) <- paste("Donor",unique(metadata$Donor))
 rownames(num.peaks) <- c("Unstimulated","Stimulated","DAC")
 num.peaks
+```
+
+```{r}
+signif <- -10*log10(0.05)
+num.signif.peaks <- sapply(X = atac.peaks, FUN = function(X){
+  these.peaks <- X
+  length(which(these.peaks$negLog10Q > signif))
+})
+num.signif.peaks <- matrix(data = num.signif.peaks, nrow = 3, ncol = 3, byrow = FALSE)
+colnames(num.signif.peaks) <- paste("Donor",unique(metadata$Donor))
+rownames(num.signif.peaks) <- c("Unstimulated","Stimulated","DAC")
+num.signif.peaks
 ```
 
 ```{r}
@@ -127,7 +140,6 @@ dev.off()
 
 ```{r}
 treatment.groups <- factor(paste(metadata$Stimulated,metadata$DAC, sep = "_"), levels = c("Unstimulated_Untreated","Stimulated_Untreated","Stimulated_Treated"))
-treatment.groups
 ```
 
 
@@ -177,8 +189,9 @@ atac.df <- bplapply(X = atac.groups, FUN = function(X){
   chr <- seqnames(these.peaks)
   start <- start(these.peaks)
   end <- end(these.peaks)
-  peak.id <- mcols(these.peaks)$read.counts
-  data.frame(chr=chr,start=start,end=end,peak.id=peak.id)
+  peak.id <- mcols(these.peaks)[,1]
+  neglog10q <- mcols(these.peaks)[,2]
+  data.frame(chr=chr,start=start,end=end,peak.id=peak.id,neglog10q=neglog10q)
 }, BPPARAM = param)
 ```
 

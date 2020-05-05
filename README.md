@@ -12,13 +12,12 @@ Emma
   * RRBS_01 - Sequencing read alignment with Bismark
   * RRBS_02 - Calling base level methylation with MethylKit
   * RRBS_03 - Calculating differential methylation with MethylKit
-  * RRBS_04 - Defining hypomethylated windows for HOMER motif enrichment
-  * ATAC_05 - Calling nucleosome-free regions with MACS2
-  * ATAC_06 - Quantifying nucleosome-free regions
-  * ATAC_07 - Defining nucleosome-free regions unique to the DAC sample group for HOMER motif enrichment
-  * RNA_08 - Quantifying transcript expression with Kallisto
-  * RNA_09 - Calling differential transcript expression with Sleuth
-  * RNA_10 - Gene-set enrichment with CensensusPathDB and limma
+  * ATAC_04 - Calling nucleosome-free regions with MACS2
+  * ATAC_05 - Quantifying nucleosome-free regions
+  * ATAC_06 - Defining nucleosome-free regions unique to the DAC sample group for HOMER motif enrichment
+  * RNAseq_07 - Quantifying transcript expression with Kallisto
+  * RNAseq_08 - Calling differential transcript expression with Sleuth
+  * RNAseq_09 - Gene-set enrichment with CensensusPathDB and limma
 * data/ - _contains any data used in this project_
   * 01_raw/
   * 02_clean/

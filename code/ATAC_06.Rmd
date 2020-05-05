@@ -57,6 +57,7 @@ library(readxl)
 library(vtree)
 library(BiocParallel)
 library(GenomicRanges)
+library(writexl)
 ```
 
 I use the `BiocParallel` package to parallelise R with the following parameters:
@@ -102,9 +103,15 @@ atac.group <- readRDS(file = file.path(r.config$dirs$augmented.data.dir,"03_atac
 ```
 
 ```{r}
-overlaps <- findOverlaps(query = atac.group[[2]], subject = atac.group[[3]])
+overlaps <- findOverlaps(query = atac.group[[2]], subject = atac.group[[3]]) 
 stim.unique <- atac.group[[2]][-queryHits(overlaps)]
 dac.unique <- atac.group[[3]][-subjectHits(overlaps)]
+
+overlaps2 <- findOverlaps(query = dac.unique, subject = atac.group[[1]])
+dac.unique <- dac.unique[-queryHits(overlaps2)]
+
+overlaps3 <- findOverlaps(query = stim.unique, subject = atac.group[[1]])
+stim.unique <- stim.unique[-queryHits(overlaps3)]
 
 unique.nfrs <- list(stim.unique,dac.unique)
 names(unique.nfrs) <- c("stim_unique","dac_unique")
@@ -133,27 +140,38 @@ I'll make these comparisons:
 - Stimulated + DAC (unique) vs All
 
 ```{bash eval=FALSE}
-findMotifsGenome.pl data/03_augmented/04_atac_homer/stim_unique.bed hg19 data/03_augmented/04_atac_homer/01_stimVsAll -size given -p 10 -bg data/03_augmented/04_atac_homer/atac_library.bed
-findMotifsGenome.pl data/03_augmented/04_atac_homer/dac_unique.bed hg19 data/03_augmented/04_atac_homer/01_dacVsAll -size given -p 10 -bg data/03_augmented/04_atac_homer/atac_library.bed
+findMotifsGenome.pl data/03_augmented/04_atac_homer/stim_unique.bed hg19 data/03_augmented/04_atac_homer/01_stimVsAll -nomotif -size given -p 10 -bg data/03_augmented/04_atac_homer/atac_library.bed
+findMotifsGenome.pl data/03_augmented/04_atac_homer/dac_unique.bed hg19 data/03_augmented/04_atac_homer/02_dacVsAll -nomotif -size given -p 10 -bg data/03_augmented/04_atac_homer/atac_library.bed
 ```
 
 ## 3. Visualising the results of the HOMER motif enrichment analysis
 
 ```{r}
-homer <- read.table(file = file.path(r.config$dirs$augmented.data.dir,"04_atac_homer","01_dacVsAll","knownResults.txt"), header = FALSE, sep = "\t", skip = 1, col.names = c("Motif","Consensus","P-value","Log P-value","q-value","N FG","PC FG","N BG","PC BG"), stringsAsFactors = FALSE)
+comparisons <- c("01_stimVsAll","02_dacVsAll")
+homer <- lapply(X = comparisons, FUN = function(X){
+  this.comparison <- X
+  read.table(file = file.path(r.config$dirs$augmented.data.dir,"04_atac_homer",this.comparison,"knownResults.txt"), header = FALSE, sep = "\t", skip = 1, col.names = c("Motif","Consensus","P-value","Log P-value","q-value","N FG","PC FG","N BG","PC BG"), stringsAsFactors = FALSE)
+})
+names(homer) <- comparisons
 ```
 
 ```{r}
-index <- which(x = homer$q.value <= 0.05)[1:6]
-name <- homer$Motif[index]
-name <- substr(x =name, start = 1, stop = 4)
-ylab <- expression(paste("-Log"[10],"(P-value)"))
-log.p <- homer$Log.P.value
+head(homer[[1]])
+head(homer[[2]])
+```
+
+
+```{r}
+log.p <- homer[[2]]$Log.P.value
 log.p <- log.p * -1
-point.col <- rep("black",nrow(homer))
-point.col[which(homer$q.value < 0.05)] <- "grey"
-plot(x = 1:nrow(homer), y = log.p, pch = 20, col = point.col, xlab = "Rank", ylab = ylab, las = 1)
-text(x = index, y = log.p[index], labels = name, adj = 0, pos = c(4,3))
+index <- which(x = homer[[2]]$q.value <= 0.05)
+name <- toupper(sapply(X = homer[[2]]$Motif[index], FUN = function(X) strsplit(x = X, split = "\\(")[[1]][1]))
+ylab <- expression(paste("-Log"[10],"(P-value)"))
+point.col <- rep("black",nrow(homer[[2]]))
+point.col[which(homer[[2]]$q.value < 0.05)] <- r.config$simple.cols[3]
+plot(x = 1:nrow(homer[[2]]), y = log.p, pch = 20, col = point.col, xlab = "Rank", ylab = ylab, las = 1)
+plot(x = 1:nrow(homer[[2]]), y = log.p, pch = 20, col = point.col, xlab = "Rank", ylab = ylab, las = 1, ylim = c(6,10), xlim = c(0,12))
+text(x = index, y = log.p[index], labels = name, adj = c(0,1), pos = 4)
 ```
 
 
@@ -161,8 +179,12 @@ text(x = index, y = log.p[index], labels = name, adj = 0, pos = c(4,3))
 png.name <- file.path(r.config$dirs$figure.dir,"ATAC_03_homerRanks.png")
 png(filename = png.name, width = 4.5, height = 4.5, units = r.config$fig.specs$units, res = r.config$fig.specs$res, pointsize = r.config$fig.specs$pointsize)
 par(mar = c(4,4,1,1))
-plot(x = 1:nrow(homer), y = log.p, pch = 20, col = point.col, xlab = "Rank", ylab = ylab, las = 1)
+plot(x = 1:nrow(homer[[2]]), y = log.p, pch = 20, col = point.col, xlab = "Rank", ylab = ylab, las = 1)
 # text(x = index, y = log.p[index], labels = name, adj = 0, pos = c(4,3))
 dev.off()
+```
+
+```{r}
+write_xlsx(x = homer, path = file.path(r.config$dirs$table.dir,"ATAC_SupplementaryTable_02.xlsx"), col_names = TRUE)
 ```
 

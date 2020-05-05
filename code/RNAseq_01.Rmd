@@ -53,7 +53,6 @@ This analysis requires the following packages:
 ```{r}
 library(readxl)
 library(vtree)
-library(writexl)
 ```
 
 This analysis requires the following R configuration object:
