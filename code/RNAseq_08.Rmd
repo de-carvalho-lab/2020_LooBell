@@ -292,3 +292,42 @@ for(i in 1:length(nfats)){
   dev.off()
 }
 ```
+
+## 5. Plotting the expression of NFAT related pathways
+
+```{r}
+target_id <- rownames(tpm)
+annotation.length <- sapply(target_id, function(x) length(strsplit(x,"\\|")[[1]]))
+gene.symbol <- sapply(target_id, function(x) strsplit(x,"\\|")[[1]][6])
+gene.symbol[which(annotation.length==1)] <- names(annotation.length)[which(annotation.length==1)]
+```
+
+```{r}
+for(i in 1:nrow(pathways.toPlot)){
+  this.pathway <- strsplit(x = pathways.toPlot$hgnc_symbol_ids[i], split = ",")[[1]]
+  these.genes <- which(gene.symbol %in% this.pathway)
+  if(length(these.genes) > 1){
+    this.matrix <- tpm[these.genes,]
+    total.expression <- rowSums(x = this.matrix)
+    this.matrix <- this.matrix[which(total.expression > 0),]
+    pheatmap(mat = this.matrix, show_rownames = FALSE, scale = "row", cluster_rows = TRUE, border_color = NA, clustering_distance_rows = "euclidean", clustering_distance_cols = "euclidean", clustering_method = "ward.D2", annotation_colors = r.config$fig.cols, annotation_col = annotation_col, show_colnames = FALSE, treeheight_row = 15, treeheight_col = 15, fontsize = 6, main = pathways.toPlot$pathway[i])
+  }
+}
+```
+
+```{r}
+for(i in 1:nrow(pathways.toPlot)){
+  this.pathway <- strsplit(x = pathways.toPlot$hgnc_symbol_ids[i], split = ",")[[1]]
+  these.genes <- which(gene.symbol %in% this.pathway)
+  if(length(these.genes) > 1){
+    this.matrix <- tpm[these.genes,]
+    total.expression <- rowSums(x = this.matrix)
+    this.matrix <- this.matrix[which(total.expression > 0),]
+    file.name <- paste0("RNAseq_S03_",pathways.toPlot$external_id[i],"_heatmap.png")
+    png.name <- file.path(r.config$dirs$figure.dir,file.name)
+    png(filename = png.name, width = 10, height = 8, units = r.config$fig.specs$units, res = r.config$fig.specs$res, pointsize = r.config$fig.specs$pointsize)
+    pheatmap(mat = this.matrix, show_rownames = FALSE, scale = "row", cluster_rows = TRUE, border_color = NA, clustering_distance_rows = "euclidean", clustering_distance_cols = "euclidean", clustering_method = "ward.D2", annotation_colors = r.config$fig.cols, annotation_col = annotation_col, show_colnames = FALSE, treeheight_row = 15, treeheight_col = 15, fontsize = 6, main = pathways.toPlot$pathway[i], annotation_names_col = FALSE)
+    dev.off()
+  }
+}
+```
