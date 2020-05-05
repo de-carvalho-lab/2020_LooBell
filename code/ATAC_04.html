@@ -2790,48 +2790,12 @@ div.tocify {
 
 <div id="summary" class="section level1">
 <h1>Summary</h1>
-<p>This R Notebook contains code pertaining to the paper Loo and Bell <em>et al.</em> (2020) <em>Nature Medicine</em>.</p>
 <ul>
 <li>Aim: To call nucleosome-free regions with MACS2.</li>
 <li>Objectives:
 <ol style="list-style-type: decimal">
 <li>To use MACS2 to call nucleosome-free regions.</li>
 </ol></li>
-</ul>
-<p>To run these scripts we assume a directory structure as described in the README accompanying this GitHub. I.e.</p>
-<ul>
-<li>code/ - <em>contains R Notebook(s) and the resulting HTML file(s)</em>
-<ul>
-<li>00A - Sequencing read pre-processing</li>
-<li>00B - R configuration</li>
-<li>RRBS_01 - Sequencing read alignment with Bismark</li>
-<li>RRBS_02 - Calling base level methylation with MethylKit</li>
-<li>RRBS_03 - Calculating differential methylation with MethylKit</li>
-<li>ATAC_04 - Calling nucleosome-free regions with MACS2</li>
-<li>ATAC_05 - Quantifying nucleosome-free regions</li>
-<li>ATAC_06 - Defining nucleosome-free regions unique to the DAC sample group for HOMER motif enrichment</li>
-<li>RNA_07 - Quantifying transcript expression with Kallisto</li>
-<li>RNA_08 - Calling differential transcript expression with Sleuth</li>
-<li>RNA_09 - Gene-set enrichment with CensensusPathDB and limma</li>
-</ul></li>
-<li>data/ - <em>contains any data used in this project</em>
-<ul>
-<li>01_raw/</li>
-<li>02_clean/</li>
-<li>03_augmented/</li>
-</ul></li>
-<li>docs/ - <em>contains any documents pertaining to this project</em>
-<ul>
-<li>Presentation_plan_template.docx</li>
-<li>Presentation_template.pptx</li>
-<li>Research_project_plan.docx</li>
-</ul></li>
-<li>results/ - <em>contains results files</em>
-<ul>
-<li>docs/</li>
-<li>figures/</li>
-<li>tables/</li>
-</ul></li>
 </ul>
 <div id="configuration" class="section level2">
 <h2>Configuration</h2>

@@ -13,40 +13,11 @@ output:
 
 # Summary
 
-This R Notebook contains code pertaining to the paper Loo and Bell _et al._ (2020) _Nature Medicine_.
-
 * Aim: To characterise the nucleosome-free regions.
 * Objectives:
   1. To visualise the number of nucleosome-free regions in each sample; 
   2. To identify nucleosome-free regions common to all samples within each treatment group;
   3. To determine the overlap in nucleosome-free regions between treatment groups.
-
-To run these scripts we assume a directory structure as described in the README accompanying this GitHub. I.e.
-
-* code/ - _contains R Notebook(s) and the resulting HTML file(s)_
-  * 00A - Sequencing read pre-processing
-  * 00B - R configuration
-  * RRBS_01 - Sequencing read alignment with Bismark
-  * RRBS_02 - Calling base level methylation with MethylKit
-  * RRBS_03 - Calculating differential methylation with MethylKit
-  * ATAC_04 - Calling nucleosome-free regions with MACS2
-  * ATAC_05 - Quantifying nucleosome-free regions
-  * ATAC_06 - Defining nucleosome-free regions unique to the DAC sample group for HOMER motif enrichment
-  * RNA_07 - Quantifying transcript expression with Kallisto
-  * RNA_08 - Calling differential transcript expression with Sleuth
-  * RNA_09 - Gene-set enrichment with CensensusPathDB and limma
-* data/ - _contains any data used in this project_
-  * 01_raw/
-  * 02_clean/
-  * 03_augmented/
-* docs/ - _contains any documents pertaining to this project_
-  * Presentation_plan_template.docx
-  * Presentation_template.pptx
-  * Research_project_plan.docx
-* results/ - _contains results files_
-  * docs/
-  * figures/
-  * tables/
 
 ## Configuration
 

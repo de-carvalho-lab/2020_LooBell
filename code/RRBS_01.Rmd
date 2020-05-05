@@ -13,8 +13,6 @@ output:
 
 # Summary
 
-This R Notebook contains code pertaining to the paper Loo and Bell _et al._ (2020) _Nature Medicine_.
-
 * Aim: To align the RRBS sequencing reads using Bismark.
 * Objectives:
   1. Trim fastq files using TrimGalore; 
@@ -24,34 +22,6 @@ This R Notebook contains code pertaining to the paper Loo and Bell _et al._ (202
   
 I adapted these scripts from a RRBS pipeline written by Roxana Shen (version 2018-03-06).
 
-To run these scripts we assume a directory structure as described in the README accompanying this GitHub. I.e.
-
-* code/ - _contains R Notebook(s) and the resulting HTML file(s)_
-  * 00A - Sequencing read pre-processing
-  * 00B - R configuration
-  * RRBS_01 - Sequencing read alignment with Bismark
-  * RRBS_02 - Calling base level methylation with MethylKit
-  * RRBS_03 - Calculating differential methylation with MethylKit
-  * RRBS_04 - Defining hypomethylated windows for HOMER motif enrichment
-  * ATAC_05 - Calling nucleosome-free regions with MACS2
-  * ATAC_06 - Quantifying nucleosome-free regions
-  * ATAC_07 - Defining nucleosome-free regions unique to the DAC sample group for HOMER motif enrichment
-  * RNA_08 - Quantifying transcript expression with Kallisto
-  * RNA_09 - Calling differential transcript expression with Sleuth
-  * RNA_10 - Gene-set enrichment with CensensusPathDB and limma
-* data/ - _contains any data used in this project_
-  * 01_raw/
-  * 02_clean/
-  * 03_augmented/
-* docs/ - _contains any documents pertaining to this project_
-  * Presentation_plan_template.docx
-  * Presentation_template.pptx
-  * Research_project_plan.docx
-* results/ - _contains results files_
-  * docs/
-  * figures/
-  * tables/
-  
 # Analysis
 
 ## 1. Trimming fastq files using TrimGalore
