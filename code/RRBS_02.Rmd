@@ -21,7 +21,7 @@ output:
   4. To output a table of the C/T counts and coverage for each sample;
   5. To visualise methylation percentage per sample;
   6. To visualise the average the base-level methylation for each sample group;
-  7. To visualise the pairwise Pearson correlation co-efficients for each sample.
+  7. To visualise the pairwise Spearman correlation co-efficients for each sample.
 
 ## Configuration
 
@@ -165,6 +165,10 @@ meth.base <- unite(object = meth.filtered, destrand = TRUE)
 
 ```{r}
 meth.df <- getData(x = meth.base)
+```
+
+
+```{r eval=FALSE}
 rrbs_ct_counts <- meth.df
 colnames(rrbs_ct_counts)[5:ncol(rrbs_ct_counts)] <- paste(c("coverage","numCs","numTs"),rep(unlist(sample.name), each = 3), sep = ".")
 write.table(x = rrbs_ct_counts, file = file.path(r.config$dirs$table.dir,"rrbs_ct_counts.txt"), sep = "\t", quote = FALSE, row.names = FALSE)
@@ -279,7 +283,7 @@ for(i in 1:length(classes.unique)){
 }
 ```
 
-## 7. Visualising the pairwise Pearson correlation co-efficients for each sample
+## 7. Visualising the pairwise Spearman correlation co-efficients for each sample
 
 Finally, I'll look at the correlation in methylation between samples. We would expect to see less correlation between the DAC treated samples and all others.
 
