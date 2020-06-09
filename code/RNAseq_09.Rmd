@@ -1,0 +1,214 @@
+---
+title: 'RNAseq_09 - Visualising the DNA methylation and RNA expression NFATC1 polyA sites'
+author: "Emma Bell"
+date: '2020-05-21'
+output:
+  html_document:
+    df_print: paged
+    toc: yes
+    toc_float: true
+    toc_depth: 2
+    fig_caption: true
+---
+
+# Summary
+
+* Aim: To visualise the DNA methylation and RNA expression NFAT polyA sites
+
+
+## Configuration
+
+This analysis requires the following packages:
+
+```{r}
+library(readxl)
+library(vtree)
+library(BiocParallel)
+library(pheatmap)
+library(EnsDb.Hsapiens.v75)
+library(Gviz)
+library(rtracklayer)
+library(tidyverse)
+```
+
+I use the `BiocParallel` package to parallelise R with the following parameters:
+
+```{r}
+param <- MulticoreParam(workers = 10, progressbar = TRUE)
+```
+
+This analysis requires the following R configuration object:
+
+```{r}
+r.config <- readRDS(file = file.path("code","r_config.RDS"))
+```
+
+# Analysis
+
+## 1. Visualising the NFAT locus
+
+
+```{r}
+ens.db <- EnsDb.Hsapiens.v75
+nfat.ens <- "ENSG00000131196"
+gf <- GeneNameFilter("NFATC1")
+tbtf <- TxBiotypeFilter("protein_coding", condition = "==")
+```
+
+```{r}
+tpm <- read.table(file = file.path(r.config$dirs$augmented.data.dir,"05_rnaseq_kallisto","02_sleuth","sleuth_tpm.txt"), sep = "\t", header = TRUE, stringsAsFactors = FALSE)
+```
+
+```{r}
+index <- grep(pattern = nfat.ens, x = rownames(tpm))
+nfat.annot <- data.frame(t(data.frame(lapply(X = rownames(tpm)[index], FUN = function(X) strsplit(X, split = "\\|")[[1]][1:6]), stringsAsFactors = FALSE)), stringsAsFactors = FALSE)
+colnames(nfat.annot) <- c("tx_id","gene_id","ott_gene","ott_tx","tx_name","gene_name")
+nfat.annot$tx_id <- substr(x = nfat.annot$tx_id, start = 1, stop = nchar(nfat.annot$tx_id) - 2)
+```
+
+```{r}
+nfat.tx <- transcripts(x = ens.db, filter = AnnotationFilterList(gf, tbtf),  order.by = "tx_seq_start")
+nfat.exons <- exons(x = ens.db, filter = AnnotationFilterList(gf, tbtf), columns = c("gene_id", "tx_id","gene_seq_start", "gene_seq_end", "tx_seq_start", "tx_cds_seq_start", "tx_cds_seq_end", "tx_biotype"), order.by = "tx_seq_start")
+nfat.exons.df <- data.frame(chromosome = paste0("chr",seqnames(nfat.exons)), start = start(nfat.exons), end = end(nfat.exons), width = width(nfat.exons), strand = "+", feature = "protein_coding", gene = nfat.exons$gene_id, exon = nfat.exons$exon_id, transcript = nfat.exons$tx_id)
+nfat.exons.df <- merge(nfat.exons.df, nfat.annot[,c("tx_id","tx_name")], by.x = "transcript", by.y = "tx_id")
+colnames(nfat.exons.df)[10] <- "symbol"
+```
+
+```{r}
+short.to.plot <- paste0("NFATC1-",c("001","004","005"))
+long.to.plot <- paste0("NFATC1-",c("001","007","201"))
+nfat.exons.short <- nfat.exons.df[which(nfat.exons.df$symbol %in% short.to.plot),]
+nfat.exons.long <- nfat.exons.df[which(nfat.exons.df$symbol %in% long.to.plot),]
+```
+
+```{r}
+chr <- "chr18"
+gen <- "hg19"
+gtrack <- GenomeAxisTrack(fontsize = 12)
+itrack <- IdeogramTrack(genome=gen, chromosome=chr)
+grtrack <- GeneRegionTrack(range = nfat.exons.df, genome = "hg19", chromosome = "chr18", name="NFATC1", strand = "+", col = "darkgrey", fill = "grey", fontsize = 15)
+grtrack.short <- GeneRegionTrack(range = nfat.exons.short, genome = "hg19", chromosome = "chr18", name="NFATC1", strand = "+", col = "darkgrey", fill = "grey", fontsize = 15)
+grtrack.long <- GeneRegionTrack(range = nfat.exons.long, genome = "hg19", chromosome = "chr18", name="NFATC1", strand = "+", col = "darkgrey", fill = "grey", fontsize = 15)
+```
+
+```{r}
+plotTracks(list(itrack,gtrack,grtrack), chromosome = 18, from = 77090000, to = 77289325, extend.right = 0.05, transcriptAnnotation="symbol")
+plotTracks(list(itrack,gtrack,grtrack.short), chromosome = 18, from = 77225000, to = 77231500, extend.right = 0.05, transcriptAnnotation="symbol")
+plotTracks(list(itrack,gtrack,grtrack.long), chromosome = 18, from = 77287000, to = 77290000, extend.right = 0.05, transcriptAnnotation="symbol")
+```
+
+```{r}
+polya <- read.table(file = file.path(r.config$dirs$augmented.data.dir,"06_ngs_tracks","01_ngs_tracks","NFATC_AATAAA_Track.bed"), stringsAsFactors = FALSE)
+polya.gr <- GRanges(seqnames = polya[,1], ranges = IRanges(start = polya[,2], end = polya[,3]), strand = "+")
+mcols(polya.gr) <- data.frame(polya[,4:5])
+polya.atrack <- AnnotationTrack(polya.gr, name = "PolyA", stacking = "dense", col = "red", fill = "red")
+```
+
+
+```{r}
+polya.anti <- read.table(file = file.path(r.config$dirs$augmented.data.dir,"06_ngs_tracks","01_ngs_tracks","NFATC_AllMotifs_Antisense_Track.bed"), stringsAsFactors = FALSE)
+polya.anti.gr <- GRanges(seqnames = polya.anti[,1], ranges = IRanges(start = polya.anti[,2], end = polya.anti[,3]), strand = "-")
+mcols(polya.anti.gr) <- data.frame(polya.anti[,4])
+polya.anti.atrack <- AnnotationTrack(polya.anti.gr, name = "PolyA (antisense)", stacking = "dense", col = "darkgrey", fill = "grey")
+```
+
+```{r}
+cgi <- read.table(file = file.path(r.config$dirs$augmented.data.dir,"06_ngs_tracks","01_ngs_tracks","cpgIslandExt.hg19.track.bed"), stringsAsFactors = FALSE)
+cgi.gr <- GRanges(seqnames = cgi[,1], ranges = IRanges(start = cgi[,2], end = cgi[,3]), strand = "*")
+cgi.atrack <- AnnotationTrack(cgi.gr, name = "cgi", col = "forestgreen", fill = "forestgreen", )
+```
+
+```{r}
+rrbs.unstim <- import(con = file.path(r.config$dirs$augmented.data.dir,"06_ngs_tracks","01_ngs_tracks","RRBS_Whole_Genome_Mean_Day0.bw"), format = "bw")
+rrbs.unstim.dtrack <- DataTrack(rrbs.unstim, name = "RRBS unstim", genome = "hg19")
+```
+
+```{r}
+bw <- list.files(path = file.path(r.config$dirs$augmented.data.dir,"06_ngs_tracks","01_ngs_tracks"), pattern = ".bw", full.names = TRUE)
+bw <- bw[19:29]
+gr <- GRanges(seqnames = 'chr18', ranges = IRanges(start = 77125000, end = 77300000))
+rnaseq <- bplapply(X = bw[1:6], function(X) import(BigWigFile(X), selection = gr[1]), BPPARAM = param)
+```
+
+```{r}
+short.end <- GRanges(seqnames = "chr18", ranges = IRanges(start = 77225000, end = 77231500))
+empty.short <- setdiff(short.end,rnaseq[[4]])
+mcols(empty.short) <- data.frame(score = 0)
+```
+
+
+```{r}
+rnaseq.unstim.pos.dtrack <- DataTrack(rnaseq[[4]], type = "histogram", ylim = c(0,8), col.histogram = r.config$simple.cols[1], fill.histogram = c(r.config$simple.cols[1],r.config$simple.cols[1]))
+rnaseq.unstim.neg.dtrack <- DataTrack(rnaseq[[3]], type = "histogram", ylim = c(-3,0), col.histogram = r.config$simple.cols[1], fill.histogram = c(r.config$simple.cols[1],r.config$simple.cols[1]))
+rnaseq.stim.pos.dtrack <- DataTrack(rnaseq[[6]], type = "histogram", ylim = c(0,8), col.histogram = r.config$simple.cols[2], fill.histogram = c(r.config$simple.cols[2],r.config$simple.cols[2]))
+rnaseq.stim.neg.dtrack <- DataTrack(rnaseq[[5]], type = "histogram", ylim = c(-3,0), col.histogram = r.config$simple.cols[2], fill.histogram = c(r.config$simple.cols[2],r.config$simple.cols[2]))
+rnaseq.dac.pos.dtrack <- DataTrack(rnaseq[[2]], type = "histogram", ylim = c(0,8), col.histogram = r.config$simple.cols[3], fill.histogram = c(r.config$simple.cols[3],r.config$simple.cols[3]))
+rnaseq.dac.neg.dtrack <- DataTrack(rnaseq[[1]], type = "histogram", ylim = c(-3,0), col.histogram = r.config$simple.cols[3], fill.histogram = c(r.config$simple.cols[3],r.config$simple.cols[3]))
+```
+
+
+```{r}
+rrbs <- read_delim(file = file.path(r.config$dirs$table.dir,"rrbs_ct_counts.txt.gz"), delim = "\t", col_names = TRUE)
+rrbs.18 <- rrbs[which(rrbs$chr == "chr18"),]
+```
+
+```{r}
+sample.name <- c(5700:5705,"H1","H2","H3")
+meth.prop <- data.frame(array(data = NA, dim = c(nrow(rrbs.18),length(sample.name))), stringsAsFactors = FALSE)
+for(i in 1:length(sample.name)){
+  this.sample <- sample.name[i]
+  col.index <- grep(pattern = this.sample, x = colnames(rrbs.18))
+  these.columns <- rrbs.18[,col.index]
+  this.prop <- these.columns[,2]/these.columns[,1]
+  meth.prop[,i] <- this.prop
+}
+colnames(meth.prop) <- paste(rep(c("Unstim","Stim","DAC"), 3), rep(1:3, each = 3), sep = ".")
+rrbs.unstim.gr <- GRanges(seqnames = rrbs.18$chr, ranges = IRanges(start = rrbs.18$start, end = rrbs.18$end))
+rrbs.stim.gr <- GRanges(seqnames = rrbs.18$chr, ranges = IRanges(start = rrbs.18$start, end = rrbs.18$end))
+rrbs.dac.gr <- GRanges(seqnames = rrbs.18$chr, ranges = IRanges(start = rrbs.18$start, end = rrbs.18$end))
+mcols(rrbs.unstim.gr) <- meth.prop[,c(1,4,7)]
+mcols(rrbs.stim.gr) <- meth.prop[,c(2,5,8)]
+mcols(rrbs.dac.gr) <- meth.prop[,c(3,6,9)]
+rrbs.unstim.dtrack <- DataTrack(rrbs.unstim.gr, type = "histogram", ylim = c(0,1), col.histogram = r.config$simple.cols[1], fill.histogram = r.config$simple.cols[1])
+rrbs.stim.dtrack <- DataTrack(rrbs.stim.gr, type = "histogram", ylim = c(0,1), col.histogram = r.config$simple.cols[2], fill.histogram = r.config$simple.cols[2])
+rrbs.dac.dtrack <- DataTrack(rrbs.dac.gr, type = "histogram", ylim = c(0,1), col.histogram = r.config$simple.cols[3], fill.histogram = r.config$simple.cols[3])
+```
+
+
+```{r fig.height=1.5,fig.width=3}
+plotTracks(list(itrack,gtrack,grtrack), chromosome = 18, from = 77150000, to = 77300000, transcriptAnnotation="symbol", extend.left = 25000, sizes = c(1,1,2))
+```
+
+
+```{r fig.height=1,fig.width=3}
+png.name <- file.path(r.config$dirs$figure.dir,"NGS_NFATC1.png")
+png(filename = png.name, width = 20, height = 5, units = r.config$fig.specs$units, res = r.config$fig.specs$res, pointsize = 6)
+plotTracks(list(itrack,gtrack,grtrack), chromosome = 18, from = 77150000, to = 77300000, transcriptAnnotation="symbol", extend.left = 25000, sizes = c(1,1,2))
+dev.off()
+```
+
+
+```{r fig.height=4}
+sizes <- c(1,1,rep(0.5,6),rep(0.75,3),rep(0.5,2))
+plotTracks(list(gtrack,grtrack.short,rnaseq.unstim.pos.dtrack,rnaseq.unstim.neg.dtrack,rnaseq.stim.pos.dtrack,rnaseq.stim.neg.dtrack,rnaseq.dac.pos.dtrack,rnaseq.dac.neg.dtrack,rrbs.unstim.dtrack,rrbs.stim.dtrack,rrbs.dac.dtrack,cgi.atrack,polya.atrack), chromosome = 18, from = 77225000, to = 77231500, transcriptAnnotation="symbol", sizes = sizes, frame = TRUE)
+```
+
+
+```{r fig.height=5}
+png.name <- file.path(r.config$dirs$figure.dir,"NGS_NFATC1_short.png")
+png(filename = png.name, width = 20, height = 10, units = r.config$fig.specs$units, res = r.config$fig.specs$res, pointsize = 6)
+plotTracks(list(gtrack,grtrack.short,rnaseq.unstim.pos.dtrack,rnaseq.unstim.neg.dtrack,rnaseq.stim.pos.dtrack,rnaseq.stim.neg.dtrack,rnaseq.dac.pos.dtrack,rnaseq.dac.neg.dtrack,rrbs.unstim.dtrack,rrbs.stim.dtrack,rrbs.dac.dtrack,cgi.atrack,polya.atrack), chromosome = 18, from = 77225000, to = 77231500, transcriptAnnotation="symbol", sizes = sizes, frame = TRUE)
+dev.off()
+```
+
+```{r}
+plotTracks(list(gtrack,grtrack.long,rnaseq.unstim.pos.dtrack,rnaseq.unstim.neg.dtrack,rnaseq.stim.pos.dtrack,rnaseq.stim.neg.dtrack,rnaseq.dac.pos.dtrack,rnaseq.dac.neg.dtrack,rrbs.unstim.dtrack,rrbs.stim.dtrack,rrbs.dac.dtrack,cgi.atrack,polya.atrack), chromosome = 18, from = 77287000, to = 77290000, transcriptAnnotation="symbol", sizes = sizes, frame = TRUE)
+```
+
+
+```{r}
+png.name <- file.path(r.config$dirs$figure.dir,"NGS_NFATC1_long.png")
+png(filename = png.name, width = 20, height = 10, units = r.config$fig.specs$units, res = r.config$fig.specs$res, pointsize = 6)
+plotTracks(list(gtrack,grtrack.long,rnaseq.unstim.pos.dtrack,rnaseq.unstim.neg.dtrack,rnaseq.stim.pos.dtrack,rnaseq.stim.neg.dtrack,rnaseq.dac.pos.dtrack,rnaseq.dac.neg.dtrack,rrbs.unstim.dtrack,rrbs.stim.dtrack,rrbs.dac.dtrack,cgi.atrack,polya.atrack), chromosome = 18, from = 77287000, to = 77290000, transcriptAnnotation="symbol", sizes = sizes, frame = TRUE)
+dev.off()
+```

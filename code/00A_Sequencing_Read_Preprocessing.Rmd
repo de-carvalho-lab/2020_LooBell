@@ -13,7 +13,7 @@ output:
 
 # Summary {.tabset}
 
-This R Notebook contains code pertaining to the paper Loo and Bell _et al._ (2020) _Nature Medicine_.
+This R Notebook contains code pertaining to the paper Loo and Bell _et al._ (2020).
 
 * Aim: To pre-process human sequencing read data.
 * Objectives:

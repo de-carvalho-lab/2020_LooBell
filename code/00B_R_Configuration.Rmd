@@ -13,7 +13,7 @@ output:
 
 # Summary {.tabset}
 
-This R Notebook contains code pertaining to the paper Loo and Bell _et al._ (2020) _Nature Medicine_.
+This R Notebook contains code pertaining to the paper Loo and Bell _et al._ (2020).
 
 * Aim: To configure my R environment.
 * Objectives:
@@ -51,7 +51,7 @@ To run these scripts we assume a directory structure as described in the README 
 
 ## 1. Create objects specifying the path to commonly referenced directories
 
-The parent directory for this project is `2020_LooBell_NatureMedicine`.
+The parent directory for this project is `2020_LooBell`.
 
 ```{r}
 code.dir <- file.path("code")

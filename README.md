@@ -1,6 +1,6 @@
-# 2020_LooBell_NatureMedicine
+# 2020_LooBell
 
-This GitHub repository contains all the code used to analyse the sequencing data associated with Loo and Bell _et al._ (2020) submitted to _Nature Medicine_. This repository aims to ensure the reproducibility of our results, and support others performing similar analyses. If you have any feedback or questions please get in touch.
+This GitHub repository contains all the code used to analyse the sequencing data associated with Loo and Bell _et al._ (2020). This repository aims to ensure the reproducibility of our results, and support others performing similar analyses. If you have any feedback or questions please get in touch.
 
 Emma
 
